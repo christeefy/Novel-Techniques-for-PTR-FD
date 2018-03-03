@@ -4,3 +4,4 @@ from . import core
 from . import utils
 from . import private
 from .core.analysis import analyze, analyze_with_multi_gpus
+from .utils import causal_heatmap, causal_graph

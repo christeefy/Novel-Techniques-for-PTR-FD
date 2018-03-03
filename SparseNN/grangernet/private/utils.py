@@ -61,3 +61,42 @@ def normalize_in_place(df):
     for key in df.columns:
         df[key] = (df[key] - np.mean(df[key])) / np.std(df[key])
     return df
+
+def generate_batch_size_scheduler(total_epochs, final_bs, initial_bs=32, interpolation='exp_step'):
+    '''
+    Decorator function that creates a function that returns the batch size given the current epoch.
+    
+    Inputs:
+        total_epochs: Total number of epochs
+        initial_bs: Initial batch size (minimum)
+        final_bs: Final batch size (maximum)
+        interpolation: Method to interpolate between initial and final batch size.
+                       Possible values include: {'step', 'exp_step', 'linear'}
+    '''
+    assert initial_bs <= final_bs, \
+    'final_batch_size of size {} must be greater than or equal to initial batch size of size {}.'.format(final_bs, initial_bs)
+    
+    assert interpolation in ['none', 'step', 'exp_step', 'linear'], \
+    'Invalid interpolation parameter.'
+    
+    def _batch_size_scheduler(epoch):
+        '''
+        Calculate the appropriate batch size given the current epoch.
+        '''
+        if interpolation == 'step':
+            num_steps = 5 # Number of steps to take
+            step_factor = (final_bs - initial_bs) // num_steps
+            batch_size = initial_bs + step_factor * ((num_steps + 1) * epoch // total_epochs)
+        elif interpolation == 'exp_step':
+            num_steps = 5 # Number of steps to take
+            base = 2 # Exponent base
+            
+            exp_step_factor = (np.log(final_bs / initial_bs) / np.log(base)) / num_steps
+            batch_size = initial_bs * base**((num_steps + 1) * epoch // total_epochs * exp_step_factor)
+        elif interpolation == 'linear':
+            batch_size = initial_bs + (final_bs - initial_bs) * epoch // (total_epochs)
+        elif interpolation == 'none':
+            batch_size = initial_bs
+        
+        return int(batch_size)
+    return _batch_size_scheduler

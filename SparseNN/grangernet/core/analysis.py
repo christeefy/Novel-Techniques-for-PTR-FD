@@ -8,9 +8,11 @@ from ..model import models
 from ..private import utils
 from ..private.gpu import utils as gpu_utils 
 
-def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, batch_size=100, early_stopping=True):
+def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, initial_batch_size=32, batch_size_interpolation='exp_step', early_stopping=True):
+    # Assertion checks
     assert isinstance(df, pd.DataFrame), 'Make sure first positional argument is a Pandas dataframe'
     assert epochs >= 100, 'Epochs must be at least 100'
+    assert initial_batch_size <= len(df) - max_lag - 1, 'Given the data, batch size cannot exceed {}'.format(len(df) - max_lag - 1)
 
     # Standardize values in df
     utils.normalize_in_place(df)
@@ -55,11 +57,11 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, ba
         
         with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
             with tf.device('/cpu:0'):
-                # Build FCNN
+                # Build model
                 _X, _Y, W1, _loss, optimizer = models.build_granger_net(X[0].shape, lambda_, reg_mode, max_lag)
             
             # Create summary writer
-            summary_writer = tf.summary.FileWriter('./Logs/SparseNN/{}/{}/{}'.format(run_id, START_TIME_DIR, var),
+            summary_writer = tf.summary.FileWriter('./Logs/SNN/{}/{}/{}'.format(run_id, START_TIME_DIR, var),
                                                    tf.get_default_graph())
             merged = tf.summary.merge_all()
 
@@ -68,21 +70,30 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, ba
             
             # Calculate initial loss prior to training
             summary = sess.run(merged, feed_dict={
-                _X: X[:batch_size], 
-                _Y: Y[:batch_size][:, np.newaxis]
+                _X: X[:(initial_batch_size * num_GPUs)], 
+                _Y: Y[:(initial_batch_size * num_GPUs)][:, np.newaxis]
             })
             summary_writer.add_summary(summary, 0)
             
-            # Train FCNN
+            # Define batch size scheduler
+            batch_size_scheduler = utils.generate_batch_size_scheduler(epochs, 
+                                                                       initial_bs=initial_batch_size, 
+                                                                       final_bs=max(initial_batch_size, len(X) // 10),
+                                                                       interpolation=batch_size_interpolation)
+
+            # Train model
             for epoch in range(epochs):
                 # Shuffle index
                 np.random.shuffle(shuffle_idx)
+
+                # Calculate batch size for current epoch
+                batch_size = batch_size_scheduler(epoch)
                 
-                for batch in range(len(X) // batch_size):
+                for batch in range(len(X) // batch_size // num_GPUs):
                     # Perform gradient descent
                     loss, _ = sess.run([_loss, optimizer], feed_dict={
-                        _X: X[shuffle_idx][(batch * batch_size):((batch + 1) * batch_size)], 
-                        _Y: Y[shuffle_idx][(batch * batch_size):((batch + 1) * batch_size)][:, np.newaxis]
+                        _X: X[shuffle_idx][(batch * batch_size * num_GPUs):((batch + 1) * batch_size * num_GPUs)], 
+                        _Y: Y[shuffle_idx][(batch * batch_size * num_GPUs):((batch + 1) * batch_size * num_GPUs)][:, np.newaxis]
                     })
                     
                 # Perform summary logging and print statements
@@ -91,8 +102,8 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, ba
                         print('At epoch {}'.format(epoch + 1))
 
                     summary = sess.run(merged, feed_dict={
-                        _X: X[shuffle_idx][:batch_size], 
-                        _Y: Y[shuffle_idx][:batch_size][:, np.newaxis]
+                        _X: X[shuffle_idx][:(batch_size * num_GPUs)], 
+                        _Y: Y[shuffle_idx][:(batch_size * num_GPUs)][:, np.newaxis]
                     })
                     summary_writer.add_summary(summary, epoch + 1)
                         
