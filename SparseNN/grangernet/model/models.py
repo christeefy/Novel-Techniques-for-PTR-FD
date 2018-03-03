@@ -1,5 +1,5 @@
 import tensorflow as tf
-from .private import regularizers, utils
+from ..private import regularizers, utils
 
 def build_granger_net(input_shape, lambda_, reg_mode, max_lag, n_H=32):
     '''
@@ -31,6 +31,7 @@ def build_granger_net(input_shape, lambda_, reg_mode, max_lag, n_H=32):
         tensors:      W1, total_cost
         optimizer:    opt
     '''
+    assert reg_mode in ['L1', 'L2', 'gL2', 'hL1', 'hL2']
 
     # Define regularization function mapping
     reg_func = {

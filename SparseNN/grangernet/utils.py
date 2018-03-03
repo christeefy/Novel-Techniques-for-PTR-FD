@@ -4,7 +4,7 @@ from graphviz import Digraph
 
 from pathlib import Path
 
-def causality_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='png'):
+def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='png'):
     '''
     Visualise calculated weights as 
     a heatmap.
