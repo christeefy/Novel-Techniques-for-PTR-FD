@@ -49,3 +49,15 @@ def extract_weights_tf(W1, max_lag):
     supplied to an image summary in TensorFlow.
     '''
     return tf.transpose(tf.reshape(tf.norm(W1, axis=1), (1, -1, max_lag, 1)), perm=(0, 2, 1, 3))
+
+
+def normalize_in_place(df):
+    '''
+    Normalize a Pandas dataframe in-place. 
+
+    Normalization here is standardization:
+        (df - mean(df)) / stddev(df)
+    '''
+    for key in df.columns:
+        df[key] = (df[key] - np.mean(df[key])) / np.std(df[key])
+    return df
