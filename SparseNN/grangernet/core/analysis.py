@@ -11,8 +11,12 @@ from ..private.gpu import utils as gpu_utils
 def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, initial_batch_size=32, batch_size_interpolation='exp_step', early_stopping=True):
     # Assertion checks
     assert isinstance(df, pd.DataFrame), 'Make sure first positional argument is a Pandas dataframe'
-    assert epochs >= 100, 'Epochs must be at least 100'
+    assert epochs >= 101, 'Epochs must be at least 101 for summaries to work'
     assert initial_batch_size <= len(df) - max_lag - 1, 'Given the data, batch size cannot exceed {}'.format(len(df) - max_lag - 1)
+
+    # Log start time
+    START_TIME = datetime.datetime.now()
+    START_TIME_DIR = START_TIME.strftime('%b %d, %Y/%I.%M%p')
 
     # Standardize values in df
     utils.normalize_in_place(df)
@@ -25,10 +29,6 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, in
     
     # Create empty causality array
     W = []
-    
-    # Define start time
-    START_TIME = datetime.datetime.now()
-    START_TIME_DIR = START_TIME.strftime('%b %d, %Y/%I.%M%p')
     
     # Define a shuffling index
     shuffle_idx = np.arange(gpu_utils.get_truncation_idx(len(df) - max_lag - 1, num_GPUs))
@@ -62,7 +62,8 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, in
             
             # Create summary writer
             summary_writer = tf.summary.FileWriter('./Logs/SNN/{}/{}/{}'.format(run_id, START_TIME_DIR, var),
-                                                   tf.get_default_graph())
+                                                   tf.get_default_graph(),
+                                                   flush_secs=10)
             merged = tf.summary.merge_all()
 
             # Initialise all TF variables
@@ -105,6 +106,7 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, in
                         _X: X[shuffle_idx][:(batch_size * num_GPUs)], 
                         _Y: Y[shuffle_idx][:(batch_size * num_GPUs)][:, np.newaxis]
                     })
+
                     summary_writer.add_summary(summary, epoch + 1)
                         
                 # Check for early stopping
@@ -123,9 +125,7 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, in
             
     # Create a np array from W
     W = np.array(W)
+
+    print('Analysis completed in {} mins {} secs'.format(*divmod((datetime.datetime.now() - START_TIME).seconds, 60)))
     
     return W
-
-
-def analyze_with_multi_gpus():
-    pass

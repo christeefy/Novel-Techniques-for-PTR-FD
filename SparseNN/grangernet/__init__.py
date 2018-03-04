@@ -3,5 +3,5 @@ __all__ = ['core', 'utils']
 from . import core
 from . import utils
 from . import private
-from .core.analysis import analyze, analyze_with_multi_gpus
+from .core.analysis import analyze
 from .utils import causal_heatmap, causal_graph

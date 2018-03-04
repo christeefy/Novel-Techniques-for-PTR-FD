@@ -188,7 +188,6 @@ def rossler(t, initial_state=[9.1901e-4, 1.4984e-3, 0.58254, 0.13225], d_mode='c
     return rosslerDF
 
 
-
 def predator_prey(gamma_xy=0, gamma_yx=0.32, r_x=3.7, r_y=3.8, N=1000, randomise=False):
     '''
     Generate values for a 2-species predator-prey model.
