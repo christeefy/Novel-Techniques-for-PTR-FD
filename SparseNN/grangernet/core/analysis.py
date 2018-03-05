@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import datetime
 
-from ..model import models
+from ..models import granger_net
 
 from ..private import utils
 from ..private.gpu import utils as gpu_utils 
@@ -56,14 +56,12 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, in
         tf.reset_default_graph()
         
         with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
-            with tf.device('/cpu:0'):
-                # Build model
-                _X, _Y, W1, _loss, optimizer = models.build_granger_net(X[0].shape, lambda_, reg_mode, max_lag)
+            # Build model
+            _X, _Y, W1, _loss, optimizer = granger_net.build_graph(X[0].shape, max_lag, lambda_, reg_mode, num_GPUs)
             
             # Create summary writer
-            summary_writer = tf.summary.FileWriter('./Logs/SNN/{}/{}/{}'.format(run_id, START_TIME_DIR, var),
-                                                   tf.get_default_graph(),
-                                                   flush_secs=10)
+            summary_writer = tf.summary.FileWriter('Logs/{}/{}/{}'.format(run_id, START_TIME_DIR, var),
+                                                   tf.get_default_graph())
             merged = tf.summary.merge_all()
 
             # Initialise all TF variables
@@ -117,6 +115,8 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, in
                     print('Exited due to early stopping.')
                     break
                         
+            # Ensure pending summaries are written to disk
+            summary_writer.flush()
             print()
             
             # Obtain weights and append to main array
