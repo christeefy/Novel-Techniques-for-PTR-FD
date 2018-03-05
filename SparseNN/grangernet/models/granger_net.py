@@ -66,7 +66,7 @@ def _build_tower(inputs, targets, reg_mode, max_lag, lambda_):
     return total_loss
 
 
-def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, n_H=32):
+def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, autocorrelate=True, n_H=32):
     '''
     Builds a fully connected neural network with one hidden layer. 
     Hidden layer uses a ReLU activation function. 
@@ -125,7 +125,7 @@ def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, n_H=32):
 
         # Get image summary of W2
         with tf.variable_scope('IMAGE_SUMMARY'):
-            tf.summary.image('W1', utils.extract_weights_tf(W1, max_lag))
+            tf.summary.image('W1', utils.extract_weights_tf(W1, max_lag, pos, autocorrelate=autocorrelate))
 
     # Create variable to store gradients and losses
     tower_grads, tower_losses = [], []

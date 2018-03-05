@@ -2,10 +2,13 @@ import numpy as np
 import tensorflow as tf
 import pandas as pd
 
-def create_dataset(df, var, max_lag):
+def create_dataset(df, var, max_lag, autocorrelate=True):
     '''
     Create X and Y for a var, based on a df. 
     X values will be selected up to `max_lag`. 
+
+    If autocorrelate is False, past values of `var`
+    will not be present in X. 
     
     Returns:
         X: Input data of shape (m, p * max_lag)
@@ -20,13 +23,17 @@ def create_dataset(df, var, max_lag):
     # Obtain output label
     Y = np.array(df[var][:-(max_lag + 1)])
     
+    # Remove column if autocorrelate is not True
+    if not autocorrelate:
+        df = df.drop(var, axis=1)
+
     # Create input data
     X = np.vstack([df[(i + 1):(max_lag + i + 1)].values.T.reshape(-1) for i in range(len(df) - 1 - max_lag)])
     
     return X, Y
     
 
-def extract_weights(W1, max_lag):
+def extract_weights(W1, max_lag, pos, autocorrelate=True):
     '''
     Extract weights from W1 of size ((p * K) x n_H) 
     by computing the L2-norm for each weight along 
@@ -38,17 +45,38 @@ def extract_weights(W1, max_lag):
     # Compute the L2-normof W1 of size K x p
     W1_norm = np.linalg.norm(W1, axis=1).reshape(-1, max_lag, order='C')
     
+    # Add -1 to the appropriate index 
+    # if autocorrelate is not True
+    if not autocorrelate:
+        W1_norm = np.insert(W1_norm, pos, values=0, axis=0)
+    
     return W1_norm
 
 
-def extract_weights_tf(W1, max_lag):
+def extract_weights_tf(W1, max_lag, pos, autocorrelate=True):
     '''
     Convert W1 ((p * K) x n_H) to
     an tensor of size (K x p) by computing 
     the L2-norm along the last axis, to be 
     supplied to an image summary in TensorFlow.
+
+    Returns a (1 x K x p x 1) tensor.
+
+    Note: 
+        Output's first dimension is the batch dim
+        Output's last dimension is the channel dim
     '''
-    return tf.transpose(tf.reshape(tf.norm(W1, axis=1), (1, -1, max_lag, 1)), perm=(0, 2, 1, 3))
+    W_norm = tf.transpose(tf.reshape(tf.norm(W1, axis=1), (1, -1, max_lag, 1)), perm=(0, 2, 1, 3))
+
+    # Add -1 to the appropriate column
+    # if autocorrelate is not True
+    if not autocorrelate:
+        return tf.concat([W_norm[..., :pos, :], 
+                          tf.constant(0, tf.float32, 
+                                      shape=(1, W_norm.get_shape().as_list()[1], 1, 1)),
+                          W_norm[..., pos:, :]], 
+                        axis=2)
+    return W_norm
 
 
 def normalize_in_place(df):

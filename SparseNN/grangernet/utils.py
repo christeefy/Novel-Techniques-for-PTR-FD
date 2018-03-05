@@ -33,6 +33,10 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
 
     # Calculate norm on axis 2
     _W_norm = np.linalg.norm(W, ord=ord, axis=2)
+
+    # Infer autocorrelation setting (Boolean) of analysis
+    autocorrelation_setting = not np.all(np.diag(_W_norm) == 0)
+    print('Autocorrelation during analysis: {}'.format(autocorrelation_setting))
     
     if mode == 'joint':        
         # Visualise causality

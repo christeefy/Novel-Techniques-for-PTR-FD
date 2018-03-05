@@ -8,7 +8,9 @@ from ..models import granger_net
 from ..private import utils
 from ..private.gpu import utils as gpu_utils 
 
-def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, initial_batch_size=32, batch_size_interpolation='exp_step', early_stopping=True):
+def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, \
+            initial_batch_size=32, batch_size_interpolation='exp_step', \
+            early_stopping=True, autocorrelate=True):
     # Assertion checks
     assert isinstance(df, pd.DataFrame), 'Make sure first positional argument is a Pandas dataframe'
     assert epochs >= 101, 'Epochs must be at least 101 for summaries to work'
@@ -37,7 +39,8 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, in
         print('Computing causality of {} (variable {} of {})...'.format(var, i + 1, p))
         
         # Obtain data and target for NN
-        X, Y = utils.create_dataset(df, var, max_lag)
+        X, Y = utils.create_dataset(df, var, max_lag, 
+                                    autocorrelate=autocorrelate)
         
         # Create early stopping variables
         early_stop = {
@@ -57,7 +60,10 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, in
         
         with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
             # Build model
-            _X, _Y, W1, _loss, optimizer = granger_net.build_graph(X[0].shape, max_lag, lambda_, reg_mode, num_GPUs)
+            _X, _Y, W1, _loss, optimizer = granger_net.build_graph(X[0].shape, max_lag, lambda_, reg_mode, 
+                                                                   num_GPUs=num_GPUs, 
+                                                                   pos=i,
+                                                                   autocorrelate=autocorrelate)
             
             # Create summary writer
             summary_writer = tf.summary.FileWriter('Logs/{}/{}/{}'.format(run_id, START_TIME_DIR, var),
@@ -121,7 +127,7 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, in
             
             # Obtain weights and append to main array
             W1_ = sess.run(W1)
-            W.append(utils.extract_weights(W1_, max_lag))
+            W.append(utils.extract_weights(W1_, max_lag, pos=i, autocorrelate=autocorrelate))
             
     # Create a np array from W
     W = np.array(W)
