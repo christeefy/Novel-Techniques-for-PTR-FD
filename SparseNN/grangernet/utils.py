@@ -121,7 +121,7 @@ def causal_graph(W, var_names, threshold=0.1, dst=None, filename='graph'):
     for (effect, cause) in zipper(np.where(_W_norm >= threshold * np.max(_W_norm))):
         # Obtain relative weight of element
         _weight = _W_norm[effect, cause] / np.max(_W_norm)
-        dot.edge(var_names[cause], var_names[effect], penwidth=str(5 * _weight), arrowsize=str(_weight))
+        dot.edge(var_names[cause], var_names[effect], penwidth=str(5 * _weight), arrowsize='1')
 
     # Save file (optional)
     if dst is not None:
