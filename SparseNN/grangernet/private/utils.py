@@ -86,8 +86,10 @@ def normalize_in_place(df):
     Normalization here is standardization:
         (df - mean(df)) / stddev(df)
     '''
+    epsilon = 1e-6
+
     for key in df.columns:
-        df[key] = (df[key] - np.mean(df[key])) / np.std(df[key])
+        df[key] = (df[key] - np.mean(df[key])) / (np.std(df[key]) + epsilon)
     return df
 
 def generate_batch_size_scheduler(total_epochs, final_bs, initial_bs=32, interpolation='exp_step'):
