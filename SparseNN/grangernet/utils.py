@@ -40,10 +40,11 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
     
     if mode == 'joint':        
         # Visualise causality
+        plt.figure(figsize=(p, p))
         plt.imshow(_W_norm, cmap='Greys')
-        plt.xlabel('Cause')
+        plt.xlabel('Cause\n', fontsize=16)
         plt.xticks(range(p), var_names)
-        plt.ylabel('Response')
+        plt.ylabel('Response', fontsize=16)
         plt.yticks(range(p), var_names)
         ax = plt.gca()
         ax.xaxis.set_label_position('top')
@@ -63,11 +64,11 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
         
     elif mode == 'ind':
         for (var, row) in zip(var_names, W):
-            print('Calculated causes to {}(t)'.format(var))
+            plt.figure(figsize=(K, p))
             plt.imshow(row.T, cmap='Greys')
-            plt.xlabel('Cause')
+            plt.xlabel('Causes to {}\n'.format(var), fontsize=16)
             plt.xticks(range(p), var_names)
-            plt.ylabel('Time Lag')
+            plt.ylabel('Time Lag', fontsize=16)
             plt.yticks(range(K), range(1, K + 1))
             ax = plt.gca()
             ax.xaxis.set_label_position('top')
@@ -85,6 +86,7 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
 
                 plt.savefig('{}{}_{}.{}'.format(dst, file_header, var, ext), bbox_inches='tight')
 
+            print()
             plt.pause(0.001)
     
 
