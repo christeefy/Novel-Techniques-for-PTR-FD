@@ -4,6 +4,20 @@ from graphviz import Digraph
 
 from pathlib import Path
 
+def _has_autocorrelation(W):
+    '''
+    Checks whether W (p x p x K) was calculated with 
+    or without the autocorrelation setting
+    during training. 
+
+    Returns a Boolean.
+    '''
+
+    # Compute the L2 norm
+    W_norm = np.linalg.norm(W, axis=-1)
+
+    return not np.all(np.diag(W_norm) == 0)
+
 def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='png'):
     '''
     Visualise calculated weights as 
@@ -35,7 +49,7 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
     _W_norm = np.linalg.norm(W, ord=ord, axis=2)
 
     # Infer autocorrelation setting (Boolean) of analysis
-    autocorrelation_setting = not np.all(np.diag(_W_norm) == 0)
+    autocorrelation_setting = _has_autocorrelation(_W_norm)
     print('Autocorrelation during analysis: {}'.format(autocorrelation_setting))
     
     if mode == 'joint':        
@@ -90,16 +104,18 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
             plt.pause(0.001)
     
 
-def causal_graph(W, var_names, threshold=0.1, dst=None, filename='graph'):
+def causal_graph(W, var_names, threshold=0.1, use_circo_layout=None, dst=None, filename='graph'):
     '''
     Construct a causal graph using the graphviz module.
 
     Inputs:
-        W:         FCNN layer 1 weights as a np array (p x p x K)
-        var_names: List of variable names
-        threshold: Minimum pct of max value of W to consider a positive causal connection
-        dst:       File save location
-        filename:  Filename
+        W:                FCNN layer 1 weights as a np array (p x p x K)
+        var_names:        List of variable names
+        threshold:        Minimum pct of max value of W to consider a positive causal connection
+        use_circo_layout: Boolean on whether to use circo layout. Default is None, 
+                          which infers based on whether W contains autocorrelation.
+        dst:              File save location
+        filename:         Filename
     '''
     # Calculate L2-norm of W
     _W_norm = np.linalg.norm(W, axis=-1)
@@ -110,7 +126,8 @@ def causal_graph(W, var_names, threshold=0.1, dst=None, filename='graph'):
     # Remove margin and let nodes flow from left to right
     dot.graph_attr['margin'] = '0'
     dot.graph_attr['rankdir'] = 'LR'
-    dot.graph_attr['layout'] = 'circo'
+    if not _has_autocorrelation(W):
+        dot.graph_attr['layout'] = 'circo'
 
     # Create nodes
     for var in var_names:
