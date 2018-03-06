@@ -8,7 +8,7 @@ from ..models import granger_net
 from ..private import utils
 from ..private.gpu import utils as gpu_utils 
 
-def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, \
+def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=3000, \
             initial_batch_size=32, batch_size_interpolation='exp_step', \
             early_stopping=True, autocorrelate=True):
     # Assertion checks
@@ -121,8 +121,17 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=2000, \
                     print('Exited due to early stopping.')
                     break
                         
+            # Log summary upon completing training
+            summary = sess.run(merged, feed_dict={
+                _X: X[shuffle_idx][:(batch_size * num_GPUs)], 
+                _Y: Y[shuffle_idx][:(batch_size * num_GPUs)][:, np.newaxis]
+            })
+
+            summary_writer.add_summary(summary, epoch + 1)
+
             # Ensure pending summaries are written to disk
             summary_writer.flush()
+
             print()
             
             # Obtain weights and append to main array
