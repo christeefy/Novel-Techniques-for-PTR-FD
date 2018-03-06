@@ -108,6 +108,7 @@ def causal_graph(W, var_names, threshold=0.1, dst=None, filename='graph'):
     # Remove margin and let nodes flow from left to right
     dot.graph_attr['margin'] = '0'
     dot.graph_attr['rankdir'] = 'LR'
+    dot.graph_attr['layout'] = 'circo'
 
     # Create nodes
     for var in var_names:
