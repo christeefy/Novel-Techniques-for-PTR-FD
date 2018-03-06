@@ -66,13 +66,17 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=3000, \
                                                                    autocorrelate=autocorrelate)
             
             # Create summary writer
-            summary_writer = tf.summary.FileWriter('Logs/{}/{}/{}'.format(run_id, START_TIME_DIR, var),
+            LOG_DIR = 'Logs/{}/{}/{}'.format(run_id, START_TIME_DIR, var)
+            summary_writer = tf.summary.FileWriter(LOG_DIR,
                                                    tf.get_default_graph())
             merged = tf.summary.merge_all()
 
             # Initialise all TF variables
             tf.global_variables_initializer().run()
             
+            # Create saver to W1
+            saver = tf.train.Saver({'W1': W1}, max_to_keep=1)
+
             # Calculate initial loss prior to training
             summary = sess.run(merged, feed_dict={
                 _X: X[:(initial_batch_size * num_GPUs)], 
@@ -117,6 +121,10 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=3000, \
                 if loss < early_stop['loss']:
                     early_stop['loss'] = loss
                     early_stop['epoch'] = epoch + 1
+
+                    # Save best W1 values
+                    _best_W1 = sess.run(W1)
+
                 elif (epoch + 1) - early_stop['epoch'] >= (epochs // 10 if early_stopping else epochs + 1):
                     print('Exited due to early stopping.')
                     break
@@ -135,8 +143,7 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=3000, \
             print()
             
             # Obtain weights and append to main array
-            W1_ = sess.run(W1)
-            W.append(utils.extract_weights(W1_, max_lag, pos=i, autocorrelate=autocorrelate))
+            W.append(utils.extract_weights(_best_W1, max_lag, pos=i, autocorrelate=autocorrelate))
             
     # Create a np array from W
     W = np.array(W)
