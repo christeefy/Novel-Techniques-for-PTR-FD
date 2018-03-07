@@ -149,16 +149,19 @@ def causal_graph(W, var_names, threshold=0.1, use_circo_layout=None, dst=None, f
     return dot
 
 
-def save_results(ex_id, W, hparams, W_submod=None):
+def save_results(filename, dst, W, hparams, W_submod=None):
     '''
-    Save computation results to Results/ex_id using np.savez. 
+    Save computation results to Results/dst/filename using np.savez. 
     W and hparams will be saved as 'W' and 'hparams'
     respectively. 
     '''
+    # Create Results folder if it does not exist
+    (Path('Results') / dst).mkdir(exist_ok=True, parents=True)
+
     if W_submod is None:
-        np.savez('Results/{}.npz'.format(ex_id), W=W, hparams=hparams)
+        np.savez('Results/{}/{}.npz'.format(dst, filename), W=W, hparams=hparams)
     else:
-        np.savez('Results/{}.npz'.format(ex_id), W=W, W_submod=W_submod, hparams=hparams)
+        np.savez('Results/{}/{}.npz'.format(dst, filename), W=W, W_submod=W_submod, hparams=hparams)
     
 
 def load_results(ex_id):
@@ -175,4 +178,4 @@ def load_results(ex_id):
         W_submod = file['W_submod']
         return W, W_submod, hparams
     
-    return W, hparams
+    return W, hparam
