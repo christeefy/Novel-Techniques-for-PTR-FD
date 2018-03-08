@@ -49,7 +49,7 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
     _W_norm = np.linalg.norm(W, ord=ord, axis=2)
 
     # Infer autocorrelation setting (Boolean) of analysis
-    autocorrelation_setting = _has_autocorrelation(_W_norm)
+    autocorrelation_setting = _has_autocorrelation(W)
     print('Autocorrelation during analysis: {}'.format(autocorrelation_setting))
     
     if mode == 'joint':        
@@ -66,6 +66,7 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
         
         # Set white to 0
         plt.clim(vmin=0)
+        plt.pause(0.001)
         
         # Output image to file if dst is not None
         if dst is not None:
@@ -178,4 +179,4 @@ def load_results(ex_id):
         W_submod = file['W_submod']
         return W, W_submod, hparams
     
-    return W, hparam
+    return W, hparams
