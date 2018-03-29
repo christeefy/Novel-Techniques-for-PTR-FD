@@ -8,7 +8,7 @@ from ..models import granger_net
 from ..private import utils
 from ..private.gpu import utils as gpu_utils 
 
-def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=3000, \
+def analyze(df, max_lag, lambda_output, run_id='', lambda_=0.1, reg_mode='hL1', epochs=3000, \
             initial_batch_size=32, batch_size_interpolation='exp_step', \
             early_stopping=True, autocorrelate=True):
     # Assertion checks
@@ -63,7 +63,8 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, reg_mode='hL1', epochs=3000, \
             _X, _Y, W1, _loss, optimizer = granger_net.build_graph(X[0].shape, max_lag, lambda_, reg_mode, 
                                                                    num_GPUs=num_GPUs, 
                                                                    pos=i,
-                                                                   autocorrelate=autocorrelate)
+                                                                   autocorrelate=autocorrelate, 
+                                                                   lambda_output=lambda_output)
             
             # Create summary writer
             LOG_DIR = 'Logs/{}/{}/{}'.format(run_id, START_TIME_DIR, var)

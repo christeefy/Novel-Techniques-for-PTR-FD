@@ -13,11 +13,26 @@ def hierarchical_L1_regularizer(W1, lambda_, max_lag):
     _W1 = tf.reshape(W1, shape=(-1, max_lag, n_H))
     
     # Optimization to parallelize over W1[:, k:, :] for k in range(K)
-    _W1 = tf.concat([_W1 * np.concatenate([np.zeros(shape=(p, k, n_H)), 
+    _W1 = tf.concat([1**(-k) * _W1 * np.concatenate([np.zeros(shape=(p, k, n_H)), 
                                            np.ones(shape=(p, max_lag - k, n_H))], axis=1) \
                      for k in range(max_lag)], axis=0)
     
     return lambda_ * tf.reduce_sum(tf.abs(_W1))
+
+# def hierarchical_L1_regularizer(W1, lambda_, max_lag):
+#     # Infer dimensions of W1
+#     _p_times_lag, n_H = W1.shape.as_list()
+#     p = _p_times_lag // max_lag
+    
+#     # Reshape W1
+#     _W1 = tf.reshape(W1, shape=(-1, max_lag, n_H))
+    
+#     # Optimization to parallelize over W1[:, k:, :] for k in range(K)
+#     _W1 = tf.concat([_W1 * np.concatenate([np.zeros(shape=(p, k, n_H)), 
+#                                            np.ones(shape=(p, max_lag - k, n_H))], axis=1) \
+#                      for k in range(max_lag)], axis=0)
+    
+#     return lambda_ * tf.reduce_sum(tf.abs(_W1))
 
 def L2_regularizer(W1, lambda_, max_lag):
     return lambda_ * tf.reduce_sum(tf.sqrt(tf.reduce_sum(W1**2, axis=-1)))  

@@ -24,14 +24,6 @@ def _build_tower(inputs, targets, reg_mode, max_lag, lambda_):
     For each gpu, create a tower replica 
     and return the loss of that tower. 
     '''
-    # Define regularization function dictionary
-    reg_func = {
-        'L1': regularizers.L1_regularizer,
-        'L2': regularizers.L2_regularizer,
-        'gL2': regularizers.group_L2_regularizer,
-        'hL1': regularizers.hierarchical_L1_regularizer,
-        'hL2': regularizers.hierarchical_L2_regularizer,
-    }
 
     # Layer 1
     with tf.variable_scope('LAYER1'):
@@ -54,11 +46,16 @@ def _build_tower(inputs, targets, reg_mode, max_lag, lambda_):
 
             # Add summary for reconstruction loss
             tf.summary.scalar('reconstruction_loss', reconstruction_loss)
-        with tf.variable_scope('REGULARIZATION_LOSS'):
-            reg_loss = reg_func[reg_mode](W1, lambda_, max_lag)
+
+            # Add tensor to collection to compute average reconstruction loss
+            tf.add_to_collection('RECONSTRUCTION_LOSS', reconstruction_loss)
+
+        # with tf.variable_scope('REGULARIZATION_LOSS'):
+        #     reg_loss = reg_func[reg_mode](W1, lambda_, max_lag)
 
         # Calculate total loss
-        total_loss = tf.add(reconstruction_loss, reg_loss, name='TOTAL_LOSS')
+        # total_loss = tf.add(reconstruction_loss, reg_loss, name='TOTAL_LOSS')
+        total_loss = reconstruction_loss
 
         # Add summaries
         tf.summary.scalar('total_loss', total_loss)
@@ -66,7 +63,7 @@ def _build_tower(inputs, targets, reg_mode, max_lag, lambda_):
     return total_loss
 
 
-def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, autocorrelate=True, n_H=32):
+def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, lambda_output, autocorrelate=True, n_H=32):
     '''
     Builds a fully connected neural network with one hidden layer. 
     Hidden layer uses a ReLU activation function. 
@@ -130,6 +127,28 @@ def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, autocorr
     # Create variable to store gradients and losses
     tower_grads, tower_losses = [], []
 
+    # Compute regularization losses
+    reg_func = {
+        'L1': regularizers.L1_regularizer,
+        'L2': regularizers.L2_regularizer,
+        'gL2': regularizers.group_L2_regularizer,
+        'hL1': regularizers.hierarchical_L1_regularizer,
+        'hL2': regularizers.hierarchical_L2_regularizer,
+    }
+
+    with tf.name_scope('REGULARIZATION_LOSS'):
+        with tf.name_scope('W1'):
+            reg_loss_W1 = reg_func[reg_mode](W1, lambda_, max_lag)
+            tf.summary.scalar('reg_loss_W1', reg_loss_W1)
+
+        with tf.name_scope('W_out'):
+            # Get handle on W_out
+            with tf.variable_scope('OUTPUT', reuse=True):
+                W_out = tf.get_variable('W_OUTPUT')
+
+            reg_loss_W_output = reg_func['L2'](W_out, lambda_output, max_lag)
+            tf.summary.scalar('reg_loss_W_output', reg_loss_W_output)
+
     # Build tower for each GPU
     with tf.variable_scope(tf.get_variable_scope(), reuse=True):
         for gpu in range(num_GPUs):
@@ -140,10 +159,10 @@ def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, autocorr
                                         reg_mode, max_lag, lambda_)
 
                     # Store losses
-                    tower_losses.append(loss)
+                    tower_losses.append(tf.add_n([loss, reg_loss_W1, reg_loss_W_output]))
 
                     # Compute gradients
-                    grad = opt.compute_gradients(loss)
+                    grad = opt.compute_gradients(tower_losses[-1])
                     tower_grads.append(grad)
 
     with tf.device('/cpu:0'):
@@ -151,10 +170,13 @@ def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, autocorr
         with tf.name_scope('AVERAGE_GRADIENTS'):
             avg_grads = gpu_utils.average_gradients(tower_grads)
 
-        # Include average loss in scalar summary
+        # Include average losses in scalar summary
         with tf.name_scope('AVERAGE_LOSS'):
             avg_loss = tf.reduce_mean(tf.stack(tower_losses, axis=0))
             tf.summary.scalar('avg_loss', avg_loss)
+
+            tf.summary.scalar('avg_reconstruction_loss', 
+                              tf.reduce_mean(tf.get_collection('RECONSTRUCTION_LOSS')))
 
         # Update variables
         train_op = opt.apply_gradients(avg_grads, global_step=global_step)

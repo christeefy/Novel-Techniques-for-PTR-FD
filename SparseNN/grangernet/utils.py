@@ -1,37 +1,29 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from graphviz import Digraph
 
 from pathlib import Path
 
-def _has_autocorrelation(W):
-    '''
-    Checks whether W (p x p x K) was calculated with 
-    or without the autocorrelation setting
-    during training. 
+import matplotlib.pyplot as plt
 
-    Returns a Boolean.
-    '''
-
-    # Compute the L2 norm
-    W_norm = np.linalg.norm(W, axis=-1)
-
-    return not np.all(np.diag(W_norm) == 0)
-
-def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='png'):
+def causal_heatmap(W, var_names, mode, ord=2, threshold=0.1, dst=None, file_header=None, ext='png'):
     '''
     Visualise calculated weights as 
     a heatmap.
     
     When mode is 'joint', it outputs a 
-    (p_effect x p_cause) heatmap. When it 
-    mode is 'ind', it produces a (p_cause x K) 
-    heatmap for each individual p_effect.
+    (p_effect x p_cause) heatmap. 
+
+    When mode is 'joint_threshold', similar map as 'joint'
+    it produces except values are thresholded to binary values. 
+
+    When mode is 'ind', it produces a 
+    (p_cause x K) heatmap for each individual p_effect.
+
     
     Inputs:
         W:            A np array of size (p_effect x p_cause x K)
         df:           A pd dataframe containing column labels
-        mode:         Visualisation mode {'joint', 'ind'}
+        mode:         Visualisation mode {'joint', 'ind', 'joint_threshold'}
         ord :         The order of the norm
         dst:          Destination to save file
         file_header:  String to be appended to each filename
@@ -40,7 +32,7 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
     Returns:
         A plt heatmap.
     '''
-    assert mode in ['joint', 'ind']
+    assert mode in ['joint', 'ind', 'joint_threshold']
     
     # Infer dimensions
     p, K = W[0].shape
@@ -73,6 +65,39 @@ def causal_heatmap(W, var_names, mode, ord=2, dst=None, file_header=None, ext='p
             assert dst[-1] == '/'
 
         	# Create path if itdoes not exist
+            Path(dst).mkdir(exist_ok=True, parents=True)
+
+            plt.savefig(dst + file_header + '_overall.' + ext, bbox_inches='tight')
+
+    elif mode == 'joint_threshold':
+        # Get tuple containing index of values above threshold
+        idx_above = np.where(_W_norm >= threshold * np.max(_W_norm))
+        idx_below = np.where(_W_norm < threshold * np.max(_W_norm))
+        
+        # Thresold appropriate values to 0 or 1
+        _W_norm[idx_above] = 1
+        _W_norm[idx_below] = 0
+
+        # Visualise causality
+        plt.figure(figsize=(p, p))
+        plt.imshow(_W_norm, cmap='Greys')
+        plt.xlabel('Cause\n', fontsize=16)
+        plt.xticks(range(p), var_names)
+        plt.ylabel('Response', fontsize=16)
+        plt.yticks(range(p), var_names)
+        ax = plt.gca()
+        ax.xaxis.set_label_position('top')
+        ax.xaxis.tick_top()
+        
+        # Set white to 0
+        plt.clim(vmin=0)
+        plt.pause(0.001)
+        
+        # Output image to file if dst is not None
+        if dst is not None:
+            assert dst[-1] == '/'
+
+            # Create path if itdoes not exist
             Path(dst).mkdir(exist_ok=True, parents=True)
 
             plt.savefig(dst + file_header + '_overall.' + ext, bbox_inches='tight')
@@ -152,25 +177,25 @@ def causal_graph(W, var_names, threshold=0.1, use_circo_layout=None, dst=None, f
 
 def save_results(filename, dst, W, hparams, W_submod=None):
     '''
-    Save computation results to Results/dst/filename using np.savez. 
+    Save computation results to dst/filename using np.savez. 
     W and hparams will be saved as 'W' and 'hparams'
     respectively. 
     '''
-    # Create Results folder if it does not exist
-    (Path('Results') / dst).mkdir(exist_ok=True, parents=True)
+    # Create dst folder if it does not exist
+    Path(dst).mkdir(exist_ok=True, parents=True)
 
     if W_submod is None:
-        np.savez('Results/{}/{}.npz'.format(dst, filename), W=W, hparams=hparams)
+        np.savez('{}/{}.npz'.format(dst, filename), W=W, hparams=hparams)
     else:
-        np.savez('Results/{}/{}.npz'.format(dst, filename), W=W, W_submod=W_submod, hparams=hparams)
+        np.savez('{}/{}.npz'.format(dst, filename), W=W, W_submod=W_submod, hparams=hparams)
     
 
-def load_results(ex_id):
+def load_results(src):
     '''
-    Load results from Results/ex_id.
+    Load results from src.
     Returns subsequent W and hparams.
     '''
-    file = np.load('Results/{}.npz'.format(ex_id))
+    file = np.load('{}.npz'.format(src))
     
     W = file['W']
     hparams = file['hparams'].item()
@@ -180,3 +205,18 @@ def load_results(ex_id):
         return W, W_submod, hparams
     
     return W, hparams
+
+
+def _has_autocorrelation(W):
+    '''
+    Checks whether W (p x p x K) was calculated with 
+    or without the autocorrelation setting
+    during training. 
+
+    Returns a Boolean.
+    '''
+
+    # Compute the L2 norm
+    W_norm = np.linalg.norm(W, axis=-1)
+
+    return not np.all(np.diag(W_norm) == 0)

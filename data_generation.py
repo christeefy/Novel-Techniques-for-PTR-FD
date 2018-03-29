@@ -81,7 +81,7 @@ def generate_ex3():
     '''
     Create a DataFrame based on pre-simulated data.
     '''
-    return pd.read_csv('Data/ex3.csv', delimiter=',')
+    return pd.read_csv('../Data/ex3.csv', delimiter=',')
 
 
 def generate_ex4(N, seed=int(datetime.datetime.now().timestamp())):
