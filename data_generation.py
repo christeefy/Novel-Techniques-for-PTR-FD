@@ -5,13 +5,16 @@ import datetime
 
 def generate_ex1(N, seed=int(datetime.datetime.now().timestamp())):
     '''
-    Generate data for Example 1.
+    Generate data for Example 1 from Ping's thesis.
 
-    Input:
-        n: Time-series length
+    Arguments:
+        N: Time-series length (int)
+        seed: Random seed value (int)
 
     Returns:
-        A Pandas DataFrame
+        A tuple containing 
+            - a Pandas DataFrame of shape (N x p)
+            - system coefficients
     '''
     # Set random seed
     np.random.seed(seed)
@@ -32,23 +35,32 @@ def generate_ex1(N, seed=int(datetime.datetime.now().timestamp())):
     ex['Y'][0] = 3.2
     ex['Z'] = np.zeros((N,))
 
+    # Generate random coefficients
+    k1, k2, k3 = np.random.uniform(size=(3,))
+
     # Generate dependent variables
-    for k in range(N - 1):
-        ex['Y'][k + 1] = 0.8 * ex['X'][k] + 0.5 * ex['Y'][k] + ex['v1'][k]
-        ex['Z'][k + 1] = 0.6 * ex['Y'][k] + ex['v2'][k]
+    for t in range(N - 1):
+        ex['Y'][t + 1] = k1 * ex['X'][t] + k2 * ex['Y'][t] + ex['v1'][t]
+        ex['Z'][t + 1] = k3 * ex['Y'][t] + ex['v2'][t]
+
+    # Map coeffs to dict
+    coeffs = {k: v for (k, v) in zip(['k1', 'k2', 'k3'], (k1, k2, k3))}
         
-    return pd.DataFrame(ex)
+    return pd.DataFrame(ex), coeffs
 
 
 def generate_ex2(N, seed=int(datetime.datetime.now().timestamp())):
     '''
-    Generate data for Example 2.
+    Generate data for Example 2 from Ping's thesis.
 
     Input:
-        n: Time-series length
+        N: Time-series length (int)
+        seed: Random seed value (int)
 
     Returns:
-        A Pandas DataFrame
+        A tuple containing 
+            - a Pandas DataFrame of shape (N x p)
+            - system coefficients
     '''
     # Set random seed
     np.random.seed(seed)
@@ -59,8 +71,15 @@ def generate_ex2(N, seed=int(datetime.datetime.now().timestamp())):
     # Convert n to int
     N = int(N)
 
+    # Generate random parameters
+    a = np.random.uniform(2, 4.5)
+    b = np.random.uniform(4.6, 6)
+    k1, k2, k3 = np.random.uniform(size=(3,))
+    k4 = np.random.randint(2, 5)
+    k5 = np.random.uniform(10, 30)
+
     # Generate source variables
-    ex['X'] = np.random.uniform(4, 5, size=(N,))
+    ex['X'] = np.random.uniform(a, b, size=(N,))
     ex['v1'] = np.random.normal(0, 0.05, size=(N,))
     ex['v2'] = np.random.normal(0, 0.05, size=(N,))
 
@@ -71,68 +90,50 @@ def generate_ex2(N, seed=int(datetime.datetime.now().timestamp())):
 
     # Generate dependent variables
     for k in range(N - 1):
-        ex['Y'][k + 1] = 1 - 2 * abs(0.5 - (0.8 * ex['X'][k] + 0.4 * (abs(ex['Y'][k])**0.5))) + ex['v1'][k]
-        ex['Z'][k + 1] = 5 * (ex['Y'][k] + 7.2)**2 + 10 * (abs(ex['X'][k]))**0.5 + ex['v2'][k]
+        ex['Y'][k + 1] = 1 - 2 * abs(k1 - (k2 * ex['X'][k] + k3 * (abs(ex['Y'][k])**0.5))) + ex['v1'][k]
+        ex['Z'][k + 1] = 5 * (ex['Y'][k] + 7.2)**k4 + k5 * (abs(ex['X'][k]))**0.5 + ex['v2'][k]
+
+    # Map coeffs to dict
+    coeffs = {k: v for (k, v) in zip(['a', 'b', 'k1', 'k2', 'k3', 'k4', 'k5'], (a, b, k1, k2, k3, k4, k5))}
         
-    return pd.DataFrame(ex)
+    return pd.DataFrame(ex), coeffs
 
 
-def generate_ex3():
+def generate_ex3(src, trial):
     '''
-    Create a DataFrame based on pre-simulated data.
-    '''
-    return pd.read_csv('../Data/ex3.csv', delimiter=',')
+    Convert a csv containing simulated data for Example 3 of Ping's thesis 
+    into a Pandas DataFrame.
 
-
-def generate_ex4(N, seed=int(datetime.datetime.now().timestamp())):
-    '''
-    Generate data for Example 2.
-
-    Input:
-        n: Time-series length
+    Arguments:
+        src: Parent directory (folder) containing csv files for Example 3. 
+        trial: Simulation id (int)
 
     Returns:
-        A Pandas DataFrame
+        A Pandas DataFrame of shape (N x p)
     '''
-    # Set random seed
-    np.random.seed(seed)
-    
-    # Define an empty dict
-    ex = {}
-    
-    # Convert n to int
-    N = int(N)
-
-    # Generate source variables
-    ex['X'] = np.random.uniform(4, 5, size=(N,))
-    ex['v1'] = np.random.normal(0, 0.05, size=(N,))
-    ex['v2'] = np.random.normal(0, 0.05, size=(N,))
-
-    # Initialise dependent variables
-    ex['Y'] = np.zeros((N,))
-    ex['Y'][0] = 0.2
-    ex['Z'] = np.zeros((N,))
-
-    # Generate dependent variables
-    for k in range(N - 1):
-        ex['Y'][k + 1] = ex['X'][k]**2
-        ex['Z'][k + 1] = ex['Y'][k]**(1/2)
-        
-    return pd.DataFrame(ex)
+    assert trial in range(1, 11)
+    return pd.read_csv(f'{src}/ex3_{trial}.csv', delimiter=',')
 
 
-def nonisothermal_CSTR():
+def nonisothermal_CSTR(src, trial):
 	'''
-	Loads the simulated values from MATLAB Simulink of 
-	a nonisothermal CSTR from Marlin's Process Control 
-	textbook.
+	Convert a csv containing simulated values of a nonisothermal
+    CSTR from Marlin's Process Control textbook into a Pandas
+    DataFrame.
+
+    Arguments:
+        src: Parent directory (folder) containing csv files for the nonisothermal CSTR. 
+        trial: Simulation id (int)
+
+    Returns:
+        A Pandas DataFrame of shape (N x p)
 	'''
-	return pd.read_csv('../Data/nonisothermal_CSTR.csv', delimiter=',')
+	return pd.read_csv(f'{src}/cstr_{trial}.csv', delimiter=',')
 
 
 def rossler(t, initial_state=[9.1901e-4, 1.4984e-3, 0.58254, 0.13225], d_mode='constant', **kwargs):
     '''
-    Returns a rossler system consisting of 
+    Generate a Rossler System consisting of 
     chemical species concentrations A, B, C and D. 
 
     Inputs:
@@ -188,116 +189,92 @@ def rossler(t, initial_state=[9.1901e-4, 1.4984e-3, 0.58254, 0.13225], d_mode='c
     return rosslerDF
 
 
-def predator_prey(gamma_xy=0, gamma_yx=0.32, r_x=3.7, r_y=3.8, N=1000, randomise=False):
+def predator_prey_4_species(N, seed):
     '''
-    Generate values for a 2-species predator-prey model.
-    '''
-    def switch(a, b):
-        '''
-        Switches the values of 'a' and 'b'
-        '''
-        return b, a
-    
-    def generate_random_periods(N, low, high):
-        '''
-        Generate an array containing cumulative period values of when the coupling parameters should be switch.
-        Inputs:
-            N:    Length of output
-            low:  Lower bound for random beta sampling
-            high: Upper bound for random beta sampling
-        '''
-        # Generate an array of random integers between low and high sampled from a beta distribution
-        temp = np.array([])
-        while np.sum(temp) < N:
-            temp = np.append(temp, np.random.randint(low, high))
-        
-        # Create cumulative period length counter
-        n = 0
-        for i in range(len(temp) - 1):
-            temp[i + 1] += temp[i]
-        temp[-1] = N
-        
-        return temp
-      
-    
-    ###################
-    # Function begins #
-    ###################
-    
-    # Add 20 time points to N to account for burn-in
-    N += 20
-    
-    ex = {
-        'X': np.zeros((N,)),
-        'Y': np.zeros((N,)),
-        'gamma_xy': np.zeros((N,)),
-        'gamma_yx': np.zeros((N,)),
-    }
-    
-    ex['X'][0] = np.random.uniform(0, .1)
-    ex['Y'][0] = np.random.uniform(0, .1)
-    
-    # If is_random = True, generate array of random time indices to switch gamma parameters:
-    if randomise == True:
-        periods = generate_random_periods(N, 50, 200)
-        ex['periods'] = periods
-    
-    for k in range(N - 1):
-        if (randomise == True) and (k == periods[0] - 1):
-            gamma_xy, gamma_yx = switch(gamma_xy, gamma_yx)
-            periods = np.delete(periods, 0)
-            
-        ex['X'][k + 1] = ex['X'][k] * (r_x - r_x * ex['X'][k] - gamma_xy * ex['Y'][k])
-        ex['Y'][k + 1] = ex['Y'][k] * (r_y - r_y * ex['Y'][k] - gamma_yx * ex['X'][k])
-        ex['gamma_xy'][k + 1] = gamma_xy
-        ex['gamma_yx'][k + 1] = gamma_yx
-        
-    ex['X'] = ex['X'][20:]
-    ex['Y'] = ex['Y'][20:]
-    ex['gamma_xy'] = ex['gamma_xy'][20:]
-    ex['gamma_yx'] = ex['gamma_yx'][20:] 
-        
-    return pd.DataFrame(ex)
+    Generate a four-species predator-prey system based on 
+    ECCM's paper. 
 
-def eastman(PVs_only=False, oscillating_only=False):
+    Arguments:
+        N: Time-series length (int)
+        seed: Random seed value (int)
+
+    Returns:
+        A tuple containing 
+            - a Pandas DataFrame of shape (N x p)
+            - system coefficients
+    '''
+    np.random.seed(seed + 100)
+
+    ex = {
+        'y1': np.zeros((N,)),
+        'y2': np.zeros((N,)),
+        'y3': np.zeros((N,)),
+        'y4': np.zeros((N,)),
+    }
+
+    # Generate initial conditions
+    for i in range(4):
+        ex[f'y{i + 1}'][0] = 0.4
+
+    # Generate random parameters
+    r1, r2, r3, r4 = np.random.uniform(3.5, 4, size=(4,))
+
+    # Generate gamma parameters
+    r_21, r_32, r_43 = np.random.uniform(0.3, 0.4, size=(3,))
+
+    for t in range(N - 1):
+        ex['y1'][t + 1] = ex['y1'][t] * (r1 - r1 * ex['y1'][t])
+        ex['y2'][t + 1] = ex['y2'][t] * (r2 - r2 * ex['y2'][t] - r_21 * ex['y1'][t])
+        ex['y3'][t + 1] = ex['y3'][t] * (r3 - r3 * ex['y3'][t] - r_32 * ex['y2'][t])
+        ex['y4'][t + 1] = ex['y4'][t] * (r4 - r4 * ex['y4'][t] - r_43 * ex['y3'][t])
+
+    # Map coeffs to dict
+    coeffs = {k: v for (k, v) in zip(['r1', 'r2', 'r3', 'r4', 'r_21', 'r_32', 'r_43'], (r1, r2, r3, r4, r_21, r_32, r_43))}        
+
+    return pd.DataFrame(ex), coeffs
+
+
+def eastman(PVs_only=False, oscillating_only=False, OSI=False):
     '''
     Load the Eastman dataset.
 
-    Inputs:
+    Arguments:
         PVs_only: Load variables that are only PVs
         oscillating_only: Load variables that are known to 
                           share a common oscillation frequency.
+        OSI: Load variables that match the OSI threshold as per Yuan's paper.
     '''
+    if not ((not oscillating_only) and (not OSI)): 
+        assert oscillating_only != OSI
+
     # Read data
     eastman_df = pd.read_csv('../Data/eastman.csv')
 
-    # Sort columns (in-place)
-    eastman_df.sort_index(axis=1, inplace=True)
-
-    if PVs_only is False:
-        return eastman_df
+    if PVs_only:
+        return (
+            eastman_df[[col for col in eastman_df.columns if 'PV' in col]]
+            .sort_index(axis=1, inplace=False))
 
     # Define key for oscillating variables
-    osc_var = ['PC2.PV',
-               'TC1.PV', 'TC2.PV',
-               'FC1.PV', 'FC5.PV', 'FC8.PV',
-               'LC1.PV', 'LC2.PV']
-        
-    # Define empty dataframe
-    filtered = pd.DataFrame()
-    
-    for field, series in eastman_df.iteritems():
-        # Filter out non-PV columns
-        if ('PV' not in field):
-            continue
-        
-        if (oscillating_only == True) and (field in osc_var):
-            filtered = pd.concat([filtered, series], axis=1)
-            continue
-        elif (oscillating_only == False):
-            filtered = pd.concat([filtered, series], axis=1)
+    if oscillating_only:
+        osc_key = ['PC2.PV',
+                   'TC1.PV', 'TC2.PV',
+                   'FC1.PV', 'FC5.PV', 'FC8.PV',
+                   'LC1.PV', 'LC2.PV']
+        return (
+            eastman_df[osc_key]
+            .sort_index(axis=1, inplace=False))
 
-    # Sort columns of filtered df
-    filtered.sort_index(axis=1, inplace=True)
-    
-    return filtered
+    elif OSI:
+        osc_key = [
+        'LC1.PV', 'LC1.OP', 
+        'FC1.PV', 'FC5.PV', 'FC5.OP', 'FC8.PV', 'FC8.OP',
+        'LC2.PV', 'LC2.OP', 
+        'TC1.PV', 'TC1.OP', 'TC2.PV', 'TC2.OP'
+       ]
+
+        return (
+            eastman_df[osc_key]
+            .sort_index(axis=1, inplace=False))
+
+    return eastman_df.sort_index(axis=1, inplace=False)
