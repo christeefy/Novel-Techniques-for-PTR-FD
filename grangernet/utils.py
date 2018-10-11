@@ -5,50 +5,53 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-def causal_heatmap(W, var_names, mode, ord=2, threshold=0.1, dst=None, file_header=None, ext='png'):
+def causal_heatmap(W, var_names, mode='joint', ord=2, threshold=0.1, dst=None, file_header=None, ext='png'):
     '''
-    Visualise calculated weights as 
-    a heatmap.
+    Generates a heatmap visualization of a (p x p) heatmap based on causalities `W` of shape (p_effect x p_cause x K).
     
-    When mode is 'joint', it outputs a 
-    (p_effect x p_cause) heatmap. 
+    When mode is 'joint', it outputs a (p_effect x p_cause) 
+    heatmap with the K-dimension L2-normed.
 
     When mode is 'joint_threshold', similar map as 'joint'
     it produces except values are thresholded to binary values. 
 
     When mode is 'ind', it produces a 
-    (p_cause x K) heatmap for each individual p_effect.
+    (p_cause x K) heatmap for each individual p_effect (applicable only to Granger Net outputs).
+
+    When mode is 'ground_truth', it displays a 
+    (p_effect x p_cause) heatmap. 
 
     
-    Inputs:
+    Arguments:
         W:            A np array of size (p_effect x p_cause x K)
-        df:           A pd dataframe containing column labels
-        mode:         Visualisation mode {'joint', 'ind', 'joint_threshold'}
+        var_names:    List of variable names
+        mode:         Visualisation mode. Valid choices are {'joint', 'ind', 'joint_threshold', 'ground_truth'}
         ord :         The order of the norm
+        threshold:    Threshold to binarize causality for 'joint_threshold' mode
         dst:          Destination to save file
-        file_header:  String to be appended to each filename
-        ext:          Format to save file
+        file_header:  String to be appended to each filename (only applicable if `dst` is specificed)
+        ext:          Format to save file (only applicable if `dst` is specificed)
         
     Returns:
-        A plt heatmap.
+        A matplotlib heatmap.
     '''
-    assert mode in ['joint', 'ind', 'joint_threshold']
-    
-    # Infer dimensions
-    p, K = W[0].shape
+    assert mode in ['joint', 'ind', 'joint_threshold', 'ground_truth']
 
-    # Calculate norm on axis 2
-    _W_norm = np.linalg.norm(W, ord=ord, axis=2)
+    # Enable LaTeX fonts
+    plt.rc('text', usetex=True)
+    plt.rc('font', family='serif')
 
-    # Infer autocorrelation setting (Boolean) of analysis
-    autocorrelation_setting = _has_autocorrelation(W)
-    print('Autocorrelation during analysis: {}'.format(autocorrelation_setting))
-    
-    if mode == 'joint':        
+    # Convert var_names to be in LaTeX math-mode
+    var_names = [f'${var}$' for var in var_names]
+
+
+    if mode == 'ground_truth':
+        p = len(W)
+
         # Visualise causality
         plt.figure(figsize=(p, p))
-        plt.imshow(_W_norm, cmap='Greys')
-        plt.xlabel('Cause\n', fontsize=16)
+        plt.imshow(W, cmap='Greys')
+        plt.xlabel('Cause', fontsize=16)
         plt.xticks(range(p), var_names)
         plt.ylabel('Response', fontsize=16)
         plt.yticks(range(p), var_names)
@@ -58,16 +61,56 @@ def causal_heatmap(W, var_names, mode, ord=2, threshold=0.1, dst=None, file_head
         
         # Set white to 0
         plt.clim(vmin=0)
-        plt.pause(0.001)
+
+        # Output image to file if dst is not None
+        if dst is not None:
+            assert dst[-1] == '/'
+
+            # Create path if itdoes not exist
+            Path(dst).mkdir(exist_ok=True, parents=True)
+
+            plt.savefig(dst + file_header + '.' + ext, bbox_inches='tight', dpi=200)
+
+        plt.show()
+
+        return
+    
+    # Infer dimensions
+    p, K = W[0].shape
+
+    # Calculate norm on axis 2
+    _W_norm = np.linalg.norm(W, ord=ord, axis=-1)
+
+    # Infer autocorrelation setting (Boolean) of analysis
+    autocorrelation_setting = _has_autocorrelation(W)
+    print('Autocorrelation during analysis: {}'.format(autocorrelation_setting))
+    
+    if mode == 'joint':        
+        # Visualise causality
+        plt.figure(figsize=(p, p))
+        plt.imshow(_W_norm, cmap='Greys')
+        plt.xlabel('Cause', fontsize=16)
+        plt.xticks(range(p), var_names)
+        plt.ylabel('Response', fontsize=16)
+        plt.yticks(range(p), var_names)
+        ax = plt.gca()
+        ax.xaxis.set_label_position('top')
+        ax.xaxis.tick_top()
+        
+        # Set white to 0
+        plt.clim(vmin=0)
         
         # Output image to file if dst is not None
         if dst is not None:
             assert dst[-1] == '/'
 
-        	# Create path if itdoes not exist
+            # Create path if itdoes not exist
             Path(dst).mkdir(exist_ok=True, parents=True)
 
-            plt.savefig(dst + file_header + '_overall.' + ext, bbox_inches='tight')
+            plt.savefig(dst + file_header + '.' + ext, bbox_inches='tight', dpi=200)
+
+        # Show image
+        plt.show()
 
     elif mode == 'joint_threshold':
         # Get tuple containing index of values above threshold
@@ -81,7 +124,7 @@ def causal_heatmap(W, var_names, mode, ord=2, threshold=0.1, dst=None, file_head
         # Visualise causality
         plt.figure(figsize=(p, p))
         plt.imshow(_W_norm, cmap='Greys')
-        plt.xlabel('Cause\n', fontsize=16)
+        plt.xlabel('Cause', fontsize=16)
         plt.xticks(range(p), var_names)
         plt.ylabel('Response', fontsize=16)
         plt.yticks(range(p), var_names)
@@ -91,7 +134,6 @@ def causal_heatmap(W, var_names, mode, ord=2, threshold=0.1, dst=None, file_head
         
         # Set white to 0
         plt.clim(vmin=0)
-        plt.pause(0.001)
         
         # Output image to file if dst is not None
         if dst is not None:
@@ -100,7 +142,10 @@ def causal_heatmap(W, var_names, mode, ord=2, threshold=0.1, dst=None, file_head
             # Create path if itdoes not exist
             Path(dst).mkdir(exist_ok=True, parents=True)
 
-            plt.savefig(dst + file_header + '_overall.' + ext, bbox_inches='tight')
+            plt.savefig(dst + file_header + '.' + ext, bbox_inches='tight', dpi=200)
+
+        # Show image
+        plt.show()
         
     elif mode == 'ind':
         for (var, row) in zip(var_names, W):
@@ -124,27 +169,30 @@ def causal_heatmap(W, var_names, mode, ord=2, threshold=0.1, dst=None, file_head
                 # Create path if itdoes not exist
                 Path(dst).mkdir(exist_ok=True, parents=True)
 
-                plt.savefig('{}{}_{}.{}'.format(dst, file_header, var, ext), bbox_inches='tight')
+                plt.savefig('{}{}_{}.{}'.format(dst, file_header, var, ext), bbox_inches='tight', dp=200)
 
             print()
-            plt.pause(0.001)
+            plt.show()
+
     
 
-def causal_graph(W, var_names, threshold=0.1, use_circo_layout=None, dst=None, filename='graph'):
+def causal_graph(W, var_names, norm_W=False, threshold=0.1, eastman=False, use_circo_layout=None, dst=None, filename='graph'):
     '''
     Construct a causal graph using the graphviz module.
 
     Inputs:
         W:                FCNN layer 1 weights as a np array (p x p x K)
         var_names:        List of variable names
+        norm_W:           Boolean on whether `W` needs to be normed. 
         threshold:        Minimum pct of max value of W to consider a positive causal connection
         use_circo_layout: Boolean on whether to use circo layout. Default is None, 
-                          which infers based on whether W contains autocorrelation.
+                          which infers based on whether `W` contains autocorrelation.
         dst:              File save location
         filename:         Filename
     '''
     # Calculate L2-norm of W
-    _W_norm = np.linalg.norm(W, axis=-1)
+    if norm_W:
+        W = np.linalg.norm(W, axis=-1)
 
     # Create causal directed graph
     dot = Digraph()
@@ -152,21 +200,29 @@ def causal_graph(W, var_names, threshold=0.1, use_circo_layout=None, dst=None, f
     # Remove margin and let nodes flow from left to right
     dot.graph_attr['margin'] = '0'
     dot.graph_attr['rankdir'] = 'LR'
-    if not _has_autocorrelation(W):
+    if not _has_autocorrelation(W) or use_circo_layout:
         dot.graph_attr['layout'] = 'circo'
 
     # Create nodes
     for var in var_names:
-        dot.node(var, var)
+        if eastman:
+            dot.node(var, var, 
+                     shape='doubleellipse' if 'OP' in var else 'ellipse',
+                     fillcolor='#00A89D' if var.split('.')[0] in ['LC1', 'TC1', 'TC2'] else '#56C1FF',#'#062958',
+                     style='filled',
+                     penwidth='0',
+                )
+        else:
+            dot.node(var, var)
 
     # Create a function to zip np.where results
     zipper = lambda x: zip(x[0], x[1])
 
     # Create edges
-    for (effect, cause) in zipper(np.where(_W_norm >= threshold * np.max(_W_norm))):
+    for (effect, cause) in zipper(np.where(W >= threshold * np.max(W))):
         # Obtain relative weight of element
-        _weight = _W_norm[effect, cause] / np.max(_W_norm)
-        dot.edge(var_names[cause], var_names[effect], penwidth=str(5 * _weight), arrowsize='1')
+        _weight = W[effect, cause] / np.max(W)
+        dot.edge(var_names[cause], var_names[effect], penwidth=str(1 * _weight), arrowsize='1')
 
     # Save file (optional)
     if dst is not None:
@@ -175,43 +231,41 @@ def causal_graph(W, var_names, threshold=0.1, use_circo_layout=None, dst=None, f
     return dot
 
 
-def save_results(filename, dst, W, hparams, W_submod=None):
+def save_results(filename, dst, **kwargs):
     '''
-    Save computation results to dst/filename using np.savez. 
-    W and hparams will be saved as 'W' and 'hparams'
+    Save computation results to dst/filename as a npz file. 
+    W and hparams will be saved with keys 'W' and 'hparams'
     respectively. 
+
+    Arguments:
+        filename: Name of saved npz file.
+        dst:      Parent directory of saved npz file.
+        **kwargs: Key-value pairs of items to save. 
     '''
+
     # Create dst folder if it does not exist
     Path(dst).mkdir(exist_ok=True, parents=True)
 
-    if W_submod is None:
-        np.savez('{}/{}.npz'.format(dst, filename), W=W, hparams=hparams)
-    else:
-        np.savez('{}/{}.npz'.format(dst, filename), W=W, W_submod=W_submod, hparams=hparams)
-    
+    np.savez(f'{dst}/{filename}.npz', **kwargs)
+
 
 def load_results(src):
     '''
-    Load results from src.
-    Returns subsequent W and hparams.
+    Load saved results of a npz file at `src`.
+
+    Arguments:
+        src: Location of npz file.
+
+    Returns:
+        A dictionary of saved values.
     '''
-    file = np.load('{}.npz'.format(src))
-    
-    W = file['W']
-    hparams = file['hparams'].item()
-    
-    if 'W_submod' in file.keys():
-        W_submod = file['W_submod']
-        return W, W_submod, hparams
-    
-    return W, hparams
+    return dict(np.load(src))
 
 
 def _has_autocorrelation(W):
     '''
-    Checks whether W (p x p x K) was calculated with 
-    or without the autocorrelation setting
-    during training. 
+    Checks whether causality matrix W of shape (p x p x K) was calculated with 
+    or without the autocorrelation setting during training (applicable to Granger Net only). 
 
     Returns a Boolean.
     '''

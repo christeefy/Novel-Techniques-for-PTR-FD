@@ -4,13 +4,33 @@ import pandas as pd
 import datetime
 
 from ..models import granger_net
+from ..models import var as vector_autoregressive
 
-from ..private import utils
+from ..private import utils as private_utils
 from ..private.gpu import utils as gpu_utils 
 
-def analyze(df, max_lag, lambda_output, run_id='', lambda_=0.1, reg_mode='hL1', epochs=3000, \
-            initial_batch_size=32, batch_size_interpolation='exp_step', \
-            early_stopping=True, autocorrelate=True):
+
+def analyze(df, max_lag, run_id='', lambda_=0.1, lambda_output=0., reg_mode='hL1', n_H=32, epochs=3000, \
+            early_stopping=True, autocausation=True, \
+            initial_batch_size=32, batch_size_interpolation='exp_step'):
+    '''
+    Script to perform Granger Net calculations. 
+
+    Arguments:
+        df:                       Pandas dataframe containing time series data
+        max_lag:                  Maximum number of lagged values to consider as inputs (int)
+        run_id:                   Optional identified to distinguisuh training procedure (str)
+        lambda_:                  Regularization weight to apply to decoder weights. L2-regularizatoin is used. Default value is zero. (float)
+        lambda_output:            Regularization weight to apply to encoder weights (float)
+        reg_mode:                 Regularization scheme to apply to encoder weights (str). Possible values include: {'L1', 'L2', 'gL2', 'hL1', 'hL2'}.
+        n_H:                      Number of hidden units of the encoder layer (int)
+        epochs:                   Maximum number of epochs for training (int)
+        early_stopping:           Boolean on whether to prematurely end training if loss value does not improve after 10% of `epochs`.
+        autocausation:            Boolean on whether to toggle off checks for autocausation
+        initial_batch_size:       Initial batch size to use for training (int)
+        batch_size_interpolation: Method to interpolate from initial and final batch size (10% of length of `df`). 
+                                  Possible values include: {'step', 'exp_step', 'linear'}.
+    '''
     # Assertion checks
     assert isinstance(df, pd.DataFrame), 'Make sure first positional argument is a Pandas dataframe'
     assert epochs >= 101, 'Epochs must be at least 101 for summaries to work'
@@ -21,7 +41,7 @@ def analyze(df, max_lag, lambda_output, run_id='', lambda_=0.1, reg_mode='hL1', 
     START_TIME_DIR = START_TIME.strftime('%b %d, %Y/%I.%M%p')
 
     # Standardize values in df
-    utils.normalize_in_place(df)
+    private_utils.normalize_in_place(df)
     
     # Infer number of variables
     p = len(df.columns)
@@ -39,8 +59,8 @@ def analyze(df, max_lag, lambda_output, run_id='', lambda_=0.1, reg_mode='hL1', 
         print('Computing causality of {} (variable {} of {})...'.format(var, i + 1, p))
         
         # Obtain data and target for NN
-        X, Y = utils.create_dataset(df, var, max_lag, 
-                                    autocorrelate=autocorrelate)
+        X, Y = private_utils.create_dataset(df, var, max_lag, 
+                                    autocausation=autocausation)
         
         # Create early stopping variables
         early_stop = {
@@ -60,12 +80,13 @@ def analyze(df, max_lag, lambda_output, run_id='', lambda_=0.1, reg_mode='hL1', 
         
         with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
             # Build model
-            _X, _Y, W1, _loss, optimizer = granger_net.build_graph(X[0].shape, max_lag, lambda_, reg_mode, 
+            _X, _Y, W1, _loss, optimizer, reconstruction_loss = granger_net.build_graph(X[0].shape, max_lag, lambda_, reg_mode, 
                                                                    num_GPUs=num_GPUs, 
                                                                    pos=i,
-                                                                   autocorrelate=autocorrelate, 
-                                                                   lambda_output=lambda_output)
-            
+                                                                   autocausation=autocausation, 
+                                                                   lambda_output=lambda_output,
+                                                                   n_H=n_H)
+
             # Create summary writer
             LOG_DIR = 'Logs/{}/{}/{}'.format(run_id, START_TIME_DIR, var)
             summary_writer = tf.summary.FileWriter(LOG_DIR,
@@ -86,10 +107,10 @@ def analyze(df, max_lag, lambda_output, run_id='', lambda_=0.1, reg_mode='hL1', 
             summary_writer.add_summary(summary, 0)
             
             # Define batch size scheduler
-            batch_size_scheduler = utils.generate_batch_size_scheduler(epochs, 
-                                                                       initial_bs=initial_batch_size, 
-                                                                       final_bs=max(initial_batch_size, len(X) // 10),
-                                                                       interpolation=batch_size_interpolation)
+            batch_size_scheduler = private_utils.generate_batch_size_scheduler(epochs, 
+                                                                               initial_bs=initial_batch_size, 
+                                                                               final_bs=max(initial_batch_size, len(X) // 10),
+                                                                               interpolation=batch_size_interpolation)
 
             # Train model
             for epoch in range(epochs):
@@ -144,11 +165,11 @@ def analyze(df, max_lag, lambda_output, run_id='', lambda_=0.1, reg_mode='hL1', 
             print()
             
             # Obtain weights and append to main array
-            W.append(utils.extract_weights(_best_W1, max_lag, pos=i, autocorrelate=autocorrelate))
+            W.append(private_utils.extract_weights(_best_W1, max_lag, pos=i, autocausation=autocausation))
             
     # Create a np array from W
     W = np.array(W)
 
     print('Analysis completed in {} mins {} secs'.format(*divmod((datetime.datetime.now() - START_TIME).seconds, 60)))
     
-    return W
+    return W, reconstruction_loss

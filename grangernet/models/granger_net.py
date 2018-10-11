@@ -50,12 +50,8 @@ def _build_tower(inputs, targets, reg_mode, max_lag, lambda_):
             # Add tensor to collection to compute average reconstruction loss
             tf.add_to_collection('RECONSTRUCTION_LOSS', reconstruction_loss)
 
-        # with tf.variable_scope('REGULARIZATION_LOSS'):
-        #     reg_loss = reg_func[reg_mode](W1, lambda_, max_lag)
-
         # Calculate total loss
-        # total_loss = tf.add(reconstruction_loss, reg_loss, name='TOTAL_LOSS')
-        total_loss = reconstruction_loss
+        total_loss = tf.add(reconstruction_loss, reg_loss, name='TOTAL_LOSS')
 
         # Add summaries
         tf.summary.scalar('total_loss', total_loss)
@@ -80,7 +76,7 @@ def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, lambda_o
     This implementation assumes there is soft device placement 
     for a single GPU.
 
-    Inputs:
+    Arguments:
         input_shape: Input dimensions (int)
         lambda_:     Regularization weight (float)
         reg_mode:    Regularization mode. 
@@ -111,7 +107,7 @@ def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, lambda_o
         _Y_split = tf.split(_Y, num_GPUs, name='SPLITTED_TARGETS')
     
     # Define variables
-    _define_vars(*input_shape, n_H)
+    _define_vars(*input_shape, n_H=n_H)
 
     # Define optimizer
     opt = tf.train.AdamOptimizer()
@@ -181,4 +177,4 @@ def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, lambda_o
         # Update variables
         train_op = opt.apply_gradients(avg_grads, global_step=global_step)
 
-    return _X, _Y, W1, avg_loss, train_op
+    return _X, _Y, W1, avg_loss, train_op, loss

@@ -3,9 +3,67 @@ import numpy as np
 import plotly.offline as pyo
 import plotly.graph_objs as go
 
+import matplotlib.pyplot as plt
 
-# Activate offline notebook plotting
+# Activate offline notebook plotting (for Jupyter Notebook)
 pyo.init_notebook_mode()
+
+def _ravel_without_diag(W):
+    '''
+    Return a ravelled np.array without the diagonal elements.
+
+    Arguments:
+        W: A causality matrix of shape (p x p).
+
+    Returns:
+        A 1-D NumPy array of length p^2 - p.
+    '''
+    # Obtain length of W
+    p = len(W)
+    return np.delete(W.ravel(), [(p + 1) * i for i in range(p)])
+
+def fault_detected(W, pos, exceptions=[]):
+    ''' (np.ndarray, int) -> (Bool)
+    Post-processing to check whether 
+    fault (variable at position `pos`) 
+    is correctly identified.
+    
+    Arguments:
+        W: Binary causality matrix
+        pos: Fault index
+
+    Returns:
+        A Boolean.
+    '''
+    return (not np.any(np.delete(W[pos], [pos] + exceptions))) and np.any(W[:, pos])
+
+def MSE(W, W_truth, threshold=0.1, autocausation=True):
+    '''
+    Calculate the mean squared error.
+
+    Arguments:
+        W:             Calculated causality of shape (p x p) or (p x p x K)
+        W_truth:       Grouth truth causality of shape (p x p)
+        threshold:     Value above which causality values are labelled as positive. 
+                       Applicable only when `W` is a 3-dimensional matrix.
+                       (i.e. an output of Granger Net)
+        autocausation: Boolean on whether autocausation was included in the analysis.
+
+    Returns:
+        The MSE (NumPy float).
+    '''
+    # Reduce last dimension and binarize if W is from GN
+    if len(W.shape) == len(W_truth.shape) + 1:
+        W = np.linalg.norm(W, axis=-1)
+
+        # Binarize values
+        W = W >= threshold * np.max(W)
+
+    if not autocausation:
+        W = _ravel_without_diag(W)
+        W_truth = _ravel_without_diag(W_truth)
+
+    return np.mean((W - W_truth)**2)
 
 def _thresholds(W):
     '''
@@ -28,7 +86,7 @@ def _thresholds(W):
     return thresholds
 
 
-def _metrics_list(W, W_truth):
+def _metrics_list(W, W_truth, autocausation=True):
     '''
     Helper function to iterate over PRF
     function and return a sorted list of PRF tuples.
@@ -36,7 +94,9 @@ def _metrics_list(W, W_truth):
     # Calculate prec, recall and F-score metric for a
     # range of thresholds. Metrics is a list of 
     # (order, (prec, recall F-score)) tuple
-    metrics = [PRF(W, W_truth, threshold) for threshold in _thresholds(W)]
+    metrics = [PRF(W, W_truth, 
+                   threshold=threshold, 
+                   autocausation=autocausation) for threshold in _thresholds(W)]
 
     # Obtain a unique list of metrics, sorted by recall
     return sorted(metrics, key=lambda x: (x['recall'], -x['precision']))
@@ -46,7 +106,7 @@ def _bounds(metrics):
     '''
     Return the lower and upper bounds of the recall domain.
 
-    Inputs:
+    Arguments:
         metrics: A list of metrics dictionary
 
     Returns:
@@ -60,7 +120,7 @@ def _bounds(metrics):
     return a, b
 
 
-def PRF(W, W_truth, threshold=0.1):
+def PRF(W, W_truth, threshold=None, autocausation=True):
     '''
     Calculate metrics by comparing thresholded values of 
     `W` against the ground truth matrix, `W_truth`.
@@ -68,10 +128,11 @@ def PRF(W, W_truth, threshold=0.1):
     Value is considered positive if it is at least `threshold` of 
     the max value in the L2 norm of `W`.
 
-    Inputs:
-        W: A NumPy matrix of calculated weights (p x p x K)
-        W_truth: Truth matrix (p x p)
-        threshold: Cutoff point
+    Arguments:
+        W:             A NumPy matrix of calculated weights (p x p x K)
+        W_truth:       Truth matrix (p x p)
+        threshold:     Cutoff point
+        autocausation: Boolean on whether autocausation was included in the analysis.
 
     Returns:
         A dictionary of threshold, precision, recall, F1-score
@@ -79,40 +140,42 @@ def PRF(W, W_truth, threshold=0.1):
     # Constants
     EPSILON = 1e-10 # For numerical stability
 
-    # Obtain norm of W (p x p)
-    W_norm = np.linalg.norm(W, axis=-1)
+    if len(W.shape) == len(W_truth.shape) + 1:
+        # Obtain norm of W (p x p)
+        W = np.linalg.norm(W, axis=-1)
 
-    # Convert ground truth matrix into a np object
-    W_truth = np.array(W_truth)
+        # Find the corresponding indices where values are positive
+        # and negative 
+        pos_idx = np.where(W >= threshold * np.max(W))
+        neg_idx = np.where(W < threshold * np.max(W))
+
+        # Set appropriate values to 0 and 1
+        W[pos_idx] = 1
+        W[neg_idx] = 0
+
+    if not autocausation:
+        W = _ravel_without_diag(W)
+        W_truth = _ravel_without_diag(W_truth)
 
     # Assertion checks
-    assert W_norm.size == W_truth.size, \
+    assert W.size == W_truth.size, \
     'Sizes of the norm of W and ground truth matrices are not in agreement.'
 
     assert set(np.unique(W_truth)) <= {0., 1.}, \
     'Ground truth matrix should contains only 0 and 1 binary values.'
 
-    # Find the corresponding indices where values are positive
-    # and negative 
-    pos_idx = np.where(W_norm >= threshold * np.max(W_norm))
-    neg_idx = np.where(W_norm < threshold * np.max(W_norm))
-
-    # Set appropriate values to 0 and 1
-    W_norm[pos_idx] = 1
-    W_norm[neg_idx] = 0
-
     # Calculate true positive
-    t_pos = np.sum(W_norm * W_truth)
+    t_pos = np.sum(W * W_truth)
 
     # Calculate precision, recall and F-score
-    prec = t_pos / (np.sum(W_norm) + EPSILON)
+    prec = t_pos / (np.sum(W) + EPSILON)
     rec = t_pos / (np.sum(W_truth) + EPSILON)
     f_score = 2 / (1 / (prec + EPSILON) + 1 / (rec + EPSILON))
 
     return dict(threshold=threshold, precision=prec, recall=rec, f_score=f_score)
 
 
-def AUCPR(W, W_truth, normalized=True):
+def AUCPR(W, W_truth, normalized=True, autocausation=True):
     '''
     Calculate the area under the precision-recall curve.
     
@@ -128,7 +191,7 @@ def AUCPR(W, W_truth, normalized=True):
     EPSILON = 1e-6  # For numerical stability
 
     # Obtain a list of (prec, recall, F1) tuples
-    metrics = _metrics_list(W, W_truth)
+    metrics = _metrics_list(W, W_truth, autocausation=autocausation)
 
     # Calculate PR AUC
     AUC = 0.
@@ -179,6 +242,9 @@ def PR_curve(W, W_truth, display_AUC=True, image=None, run_id=''):
     M_R = 80 # Right margin
 
 
+    # Convert W_truth into a NumPy array if not already so
+    W_truth = np.array(W_truth)
+
     # Obtain sorted PRF metrics
     metrics = _metrics_list(W, W_truth)
 
@@ -192,7 +258,7 @@ def PR_curve(W, W_truth, display_AUC=True, image=None, run_id=''):
     curve = go.Scatter(
         x = [round(metric['recall'], DP) for metric in metrics],
         y = [round(metric['precision'], DP) for metric in metrics],
-        text = ['threshold: {}'.format(int(metric['threshold'] * 100) / 100) for metric in metrics],
+        text = ['threshold: {}'.format(round(metric['threshold'], 3)) for metric in metrics],
         mode = 'lines+markers',
         marker = dict(color = '#1f77b4'),
         name = 'PR Curve'
@@ -210,14 +276,23 @@ def PR_curve(W, W_truth, display_AUC=True, image=None, run_id=''):
         hoverinfo = 'none',
     )
 
-    data = go.Data([min_curve, curve])
+    data = [min_curve, curve]
+
+    # Define title
+    title = ''
+    if image is None:
+        title += '<b>Precision-Recall Curve</b>'
+    if display_AUC:
+        title += f'<br>(AUCNPR: {round(AUCPR(W, W_truth), 3)})'
 
     # Define layout
     layout = go.Layout(
-        title = '<b>Precision-Recall Curve</b><br>(AUCNPR: {})'\
-                .format(round(AUCPR(W, W_truth), 3)),
+        title = title,
+        titlefont = dict(size=20 if image else 20),
         xaxis = dict(
             title = 'Recall',
+            titlefont = dict(size=22 if image else 16),
+            tickfont = dict(size=16 if image else 12),
             showgrid = False,
             dtick = 1 - a,
             tick0 = a,
@@ -225,6 +300,8 @@ def PR_curve(W, W_truth, display_AUC=True, image=None, run_id=''):
         ),
         yaxis = dict(
             title = 'Precision',
+            titlefont = dict(size=22 if image else 16),
+            tickfont = dict(size=16 if image else 12),
             range = [0, 1 + INTERVAL]
         ),
         legend = dict(
@@ -234,7 +311,7 @@ def PR_curve(W, W_truth, display_AUC=True, image=None, run_id=''):
             traceorder = 'reversed'
         ),
         margin = dict(
-            t = M_TOP, 
+            t = M_TOP,# if image is None else 20, 
             b = M_BOT,
         ),
         font = dict(
@@ -250,7 +327,7 @@ def PR_curve(W, W_truth, display_AUC=True, image=None, run_id=''):
                 y = 0.4 * skew * (b - a) / (1 - skew + skew * (b - a)),
                 text = '<b>Unachievable<br>Region</b>',
                 showarrow = False,
-                font = dict(size=14)
+                font = dict(size=18 if image else 14)
             ),
         ]
     )
