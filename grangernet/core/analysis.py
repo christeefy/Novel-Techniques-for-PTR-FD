@@ -4,7 +4,6 @@ import pandas as pd
 import datetime
 
 from ..models import granger_net
-from ..models import var as vector_autoregressive
 
 from ..private import utils as private_utils
 from ..private.gpu import utils as gpu_utils 
