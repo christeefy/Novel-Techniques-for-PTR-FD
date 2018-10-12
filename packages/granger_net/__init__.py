@@ -1,6 +1,5 @@
-__all__ = ['core', 'metrics']
+__all__ = ['core']
 
 from . import core
 from . import private
-from . import metrics
 from .core.analysis import analyze
