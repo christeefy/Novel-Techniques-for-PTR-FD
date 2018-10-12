@@ -39,7 +39,7 @@ def _calc_RSS(X, Y):
         X: NumPy array of shape (N x p)
         Y: NumPy array of shape (N x m)
     '''
-    return np.linalg.lstsq(X, Y)[1]
+    return np.linalg.lstsq(X, Y, rcond=None)[1]
 
 def granger_causality(df, max_lag, pval=0.05):
     '''
@@ -50,9 +50,12 @@ def granger_causality(df, max_lag, pval=0.05):
         df: A pandas dataframe of shape (N x p)
         max_lag: Number of past lagged inputs to include in the linear model (int)
         pval: Type 1 error for rejecting null hypothesis of no causality. 
+
+    Returns:
+        A binary causality matrix.
     '''
     # Create numpy input and output arrays for VAR modelling from dataframe
-    X, Y = _create_dataset_vector_output(df, K)
+    X, Y = _create_dataset_vector_output(df, max_lag)
 
     assert len(X) == len(Y)
 
@@ -60,17 +63,17 @@ def granger_causality(df, max_lag, pval=0.05):
     N, p = Y.shape
     
     # Calculate RSS for full model
-    RSS_full = np.expand_dims(calc_RSS(X, Y), axis=1)
+    RSS_full = np.expand_dims(_calc_RSS(X, Y), axis=1)
     
     # Calculate RSS for reduced models
     RSS = np.zeros((p, p))
     for i in range(p):
-        RSS[:, i] = _calc_RSS(np.delete(X, slice(i * K, (i + 1) * K), axis=1), Y)
+        RSS[:, i] = _calc_RSS(np.delete(X, slice(i * max_lag, (i + 1) * max_lag), axis=1), Y)
         
     # Calculate f-stats
-    f_stats = ((RSS - RSS_full) / K) / (RSS_full / (N - p * K))
+    f_stats = ((RSS - RSS_full) / max_lag) / (RSS_full / (N - p * max_lag))
     
     # Binarize values based on significance
-    causalities = f.sf(f_stats, K, N - p * K) <= pval
+    causalities = f.sf(f_stats, max_lag, N - p * max_lag) <= pval
     
-    return causalities1
+    return causalities.astype(float)

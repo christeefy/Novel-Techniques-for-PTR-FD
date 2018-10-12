@@ -42,7 +42,7 @@ def _build_tower(inputs, targets, reg_mode, max_lag, lambda_):
     # Define the cost function
     with tf.variable_scope('LOSS'):
         with tf.variable_scope('RECONSTRUCTION_LOSS'):
-            reconstruction_loss = tf.reduce_mean((targets - Y_pred)**2)
+            reconstruction_loss = tf.reduce_mean(tf.square(targets - Y_pred))
 
             # Add summary for reconstruction loss
             tf.summary.scalar('reconstruction_loss', reconstruction_loss)
@@ -50,16 +50,10 @@ def _build_tower(inputs, targets, reg_mode, max_lag, lambda_):
             # Add tensor to collection to compute average reconstruction loss
             tf.add_to_collection('RECONSTRUCTION_LOSS', reconstruction_loss)
 
-        # Calculate total loss
-        total_loss = tf.add(reconstruction_loss, reg_loss, name='TOTAL_LOSS')
-
-        # Add summaries
-        tf.summary.scalar('total_loss', total_loss)
-
-    return total_loss
+    return reconstruction_loss
 
 
-def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, lambda_output, autocorrelate=True, n_H=32):
+def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, lambda_output, autocausation=True, n_H=32):
     '''
     Builds a fully connected neural network with one hidden layer. 
     Hidden layer uses a ReLU activation function. 
@@ -118,7 +112,7 @@ def build_graph(input_shape, max_lag, lambda_, reg_mode, num_GPUs, pos, lambda_o
 
         # Get image summary of W2
         with tf.variable_scope('IMAGE_SUMMARY'):
-            tf.summary.image('W1', utils.extract_weights_tf(W1, max_lag, pos, autocorrelate=autocorrelate))
+            tf.summary.image('W1', utils.extract_weights_tf(W1, max_lag, pos, autocausation=autocausation))
 
     # Create variable to store gradients and losses
     tower_grads, tower_losses = [], []

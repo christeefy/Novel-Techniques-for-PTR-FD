@@ -29,6 +29,9 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, lambda_output=0., reg_mode='hL1
         initial_batch_size:       Initial batch size to use for training (int)
         batch_size_interpolation: Method to interpolate from initial and final batch size (10% of length of `df`). 
                                   Possible values include: {'step', 'exp_step', 'linear'}.
+
+    Returns:
+        The numpy array of shape (p x p x max_lag) containing the trained encoder weights.
     '''
     # Assertion checks
     assert isinstance(df, pd.DataFrame), 'Make sure first positional argument is a Pandas dataframe'
@@ -171,4 +174,4 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, lambda_output=0., reg_mode='hL1
 
     print('Analysis completed in {} mins {} secs'.format(*divmod((datetime.datetime.now() - START_TIME).seconds, 60)))
     
-    return W, reconstruction_loss
+    return W

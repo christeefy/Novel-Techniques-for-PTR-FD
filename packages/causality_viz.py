@@ -3,27 +3,27 @@ from graphviz import Digraph
 
 import matplotlib.pyplot as plt
 
-def causal_heatmap(W, var_names, mode='joint', ord=2, threshold=0.1, dst=None, file_header=None, ext='png'):
+def causal_heatmap(W, var_names, mode='regular', ord=2, threshold=0.1, dst=None, file_header=None, ext='png'):
     '''
     Generates a heatmap visualization of a (p x p) heatmap based on causalities `W` of shape (p_effect x p_cause x K).
+
+    ***Heatmap Modes***
+    When mode is 'regular' (default), it displays W of shape (p x p) as a (p x p) heatmap. 
     
-    When mode is 'joint', it outputs a (p_effect x p_cause) 
-    heatmap with the K-dimension L2-normed.
+    When mode is 'joint', it converts W of shape (p x p x K) to a heatmap of shape (p x p)
+    by norming the K-dimension.
 
-    When mode is 'joint_threshold', similar map as 'joint'
-    it produces except values are thresholded to binary values. 
+    When mode is 'joint_threshold', its transformation is similar to 'joint' except that
+    the (p x p) values are thresholded to binary values based on the supplied `threshold`.
 
-    When mode is 'ind', it produces a 
+    When mode is 'ind', it produces a
     (p_cause x K) heatmap for each individual p_effect (applicable only to Granger Net outputs).
-
-    When mode is 'ground_truth', it displays a 
-    (p_effect x p_cause) heatmap. 
 
     
     Arguments:
         W:            A np array of size (p_effect x p_cause x K)
         var_names:    List of variable names
-        mode:         Visualisation mode. Valid choices are {'joint', 'ind', 'joint_threshold', 'ground_truth'}
+        mode:         Visualisation mode. Valid choices are {'joint', 'ind', 'joint_threshold', 'regular'}
         ord :         The order of the norm
         threshold:    Threshold to binarize causality for 'joint_threshold' mode
         dst:          Destination to save file
@@ -33,7 +33,7 @@ def causal_heatmap(W, var_names, mode='joint', ord=2, threshold=0.1, dst=None, f
     Returns:
         A matplotlib heatmap.
     '''
-    assert mode in ['joint', 'ind', 'joint_threshold', 'ground_truth']
+    assert mode in ['joint', 'ind', 'joint_threshold', 'regular']
 
     # Enable LaTeX fonts
     plt.rc('text', usetex=True)
@@ -43,7 +43,7 @@ def causal_heatmap(W, var_names, mode='joint', ord=2, threshold=0.1, dst=None, f
     var_names = [f'${var}$' for var in var_names]
 
 
-    if mode == 'ground_truth':
+    if mode == 'regular':
         p = len(W)
 
         # Visualise causality
@@ -149,7 +149,7 @@ def causal_heatmap(W, var_names, mode='joint', ord=2, threshold=0.1, dst=None, f
         for (var, row) in zip(var_names, W):
             plt.figure(figsize=(K, p))
             plt.imshow(row.T, cmap='Greys')
-            plt.xlabel('Causes to {}\n'.format(var), fontsize=16)
+            plt.xlabel('Causes to {}'.format(var.split("$")[1]), fontsize=16)
             plt.xticks(range(p), var_names)
             plt.ylabel('Time Lag', fontsize=16)
             plt.yticks(range(K), range(1, K + 1))
@@ -178,7 +178,7 @@ def causal_graph(W, var_names, norm_W=False, threshold=0.1, eastman=False, use_c
     '''
     Construct a causal graph using the graphviz module.
 
-    Inputs:
+    Arguments:
         W:                FCNN layer 1 weights as a np array (p x p x K)
         var_names:        List of variable names
         norm_W:           Boolean on whether `W` needs to be normed. 

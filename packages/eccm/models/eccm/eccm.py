@@ -32,7 +32,7 @@ def _eccm_base(df, source, target, cross_map_lags, embed_dim, delay=1):
     return causality_list
 
 
-def eccm(DF, cross_map_lags=5, use_all_points=False, criterion='Peak', p_val=0.05, verbose=False):
+def eccm(df, cross_map_lags=5, use_all_points=False, criterion='Peak', p_val=0.05, verbose=False):
     '''
     Perform causality calculations using the Extended CCM algorithm.
 
@@ -60,7 +60,7 @@ def eccm(DF, cross_map_lags=5, use_all_points=False, criterion='Peak', p_val=0.0
     for a given variable pair to the _eccm_base function.
     
     Arguments:
-        DF:             A Pandas DataFrame containing the time series variables
+        df:             A Pandas DataFrame containing the time series variables
         cross_map_lags: Range of cross map lags to calculate 
                         [-`cross_map_lags`, `cross_map_lags` + 1]
         use_all_points: Boolean. If True, use all points for ECCM calculation. 
@@ -80,7 +80,7 @@ def eccm(DF, cross_map_lags=5, use_all_points=False, criterion='Peak', p_val=0.0
     assert criterion in ['Peak', 'URC']
     
     # Calculate length of datapoints to use
-    N = len(DF) if use_all_points else min(int(0.25 * len(DF)), 1000)
+    N = len(df) if use_all_points else min(int(0.25 * len(df)), 1000)
     
     # Ensure that there are sufficient points to perform ECCM
     assert N > cross_map_lags + 3 # Default kNN hyperparameter = 3 in CCM function
@@ -89,16 +89,16 @@ def eccm(DF, cross_map_lags=5, use_all_points=False, criterion='Peak', p_val=0.0
     causalitiesDF = pd.DataFrame()
     
     # Run Extended CCM algorithm
-    p = len(DF.columns)
-    for i, (source, target) in enumerate(itertools.permutations(DF.columns, 2)):
+    p = len(df.columns)
+    for i, (source, target) in enumerate(itertools.permutations(df.columns, 2)):
         if verbose:
             print(f'Processing {source} → {target} ({i + 1} of {p**2 - p}, {100 * (i + 1) / (p**2 - p):.1f}%)...')
 
         causalitiesDF['{} → {}'.format(target, source)] = \
-            _eccm_base(DF[-N:], 
+            _eccm_base(df[-N:], 
                    source=source, 
                    target=target,
-                   embed_dim=len(DF.columns),
+                   embed_dim=len(df.columns),
                    cross_map_lags=cross_map_lags)
 
     # Add 'Cross Map Lag' as DataFrame index
@@ -117,7 +117,7 @@ def eccm(DF, cross_map_lags=5, use_all_points=False, criterion='Peak', p_val=0.0
     )
     
     # Prune graph for indirect causalities
-    g = graph.Graph(nodes=DF.columns, 
+    g = graph.Graph(nodes=df.columns, 
                          edges=peaksDF.index, 
                          dists=[-int(dist) for dist in peaksDF[f'{criterion} xMap Lag']])
     if verbose:
