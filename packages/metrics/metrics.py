@@ -46,7 +46,7 @@ def MSE(W, W_truth, threshold=0.1, autocausation=True):
     return np.mean((W - W_truth)**2)
 
 
-def PRF(W, W_truth, threshold=None, autocausation=True):
+def PRF(W, W_truth, threshold=0.1, autocausation=True):
     '''
     Calculate metrics by comparing thresholded values of 
     `W` against the ground truth matrix, `W_truth`.

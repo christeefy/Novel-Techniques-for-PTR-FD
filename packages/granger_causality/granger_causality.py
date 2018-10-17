@@ -41,7 +41,7 @@ def _calc_RSS(X, Y):
     '''
     return np.linalg.lstsq(X, Y, rcond=None)[1]
 
-def granger_causality(df, max_lag, pval=0.05):
+def granger_causality(df, max_lag, pval=0.05, autocausation=True):
     '''
     Calculates the causality between time series pairs in `df` using the 
     Granger Causality technique. 
@@ -75,5 +75,9 @@ def granger_causality(df, max_lag, pval=0.05):
     
     # Binarize values based on significance
     causalities = f.sf(f_stats, max_lag, N - p * max_lag) <= pval
+
+    if not autocausation:
+        for i in range(len(causalities)):
+            causalities[i, i] = False
     
     return causalities.astype(float)

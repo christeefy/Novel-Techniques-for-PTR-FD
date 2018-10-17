@@ -9,7 +9,7 @@ from ..private import utils as private_utils
 from ..private.gpu import utils as gpu_utils 
 
 
-def analyze(df, max_lag, run_id='', lambda_=0.1, lambda_output=0., reg_mode='hL1', n_H=32, epochs=3000, \
+def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='hL1', n_H=32, epochs=3000, \
             early_stopping=True, autocausation=True, \
             initial_batch_size=32, batch_size_interpolation='exp_step'):
     '''
@@ -18,7 +18,7 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, lambda_output=0., reg_mode='hL1
     Arguments:
         df:                       Pandas dataframe containing time series data
         max_lag:                  Maximum number of lagged values to consider as inputs (int)
-        run_id:                   Optional identified to distinguisuh training procedure (str)
+        run_id:                   (Optional) Run identifier (str). Default value is None. Include value to enable TensorBoard logging.
         lambda_:                  Regularization weight to apply to decoder weights. L2-regularizatoin is used. Default value is zero. (float)
         lambda_output:            Regularization weight to apply to encoder weights (float)
         reg_mode:                 Regularization scheme to apply to encoder weights (str). Possible values include: {'L1', 'L2', 'gL2', 'hL1', 'hL2'}.
@@ -90,10 +90,11 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, lambda_output=0., reg_mode='hL1
                                                                    n_H=n_H)
 
             # Create summary writer
-            LOG_DIR = 'Logs/{}/{}/{}'.format(run_id, START_TIME_DIR, var)
-            summary_writer = tf.summary.FileWriter(LOG_DIR,
-                                                   tf.get_default_graph())
-            merged = tf.summary.merge_all()
+            if run_id is not None:
+                LOG_DIR = 'Logs/{}/{}/{}'.format(run_id, START_TIME_DIR, var)
+                summary_writer = tf.summary.FileWriter(LOG_DIR,
+                                                       tf.get_default_graph())
+                merged = tf.summary.merge_all()
 
             # Initialise all TF variables
             tf.global_variables_initializer().run()
@@ -101,12 +102,13 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, lambda_output=0., reg_mode='hL1
             # Create saver to W1
             saver = tf.train.Saver({'W1': W1}, max_to_keep=1)
 
-            # Calculate initial loss prior to training
-            summary = sess.run(merged, feed_dict={
-                _X: X[:(initial_batch_size * num_GPUs)], 
-                _Y: Y[:(initial_batch_size * num_GPUs)][:, np.newaxis]
-            })
-            summary_writer.add_summary(summary, 0)
+            if run_id is not None:
+                # Calculate initial loss prior to training
+                summary = sess.run(merged, feed_dict={
+                    _X: X[:(initial_batch_size * num_GPUs)], 
+                    _Y: Y[:(initial_batch_size * num_GPUs)][:, np.newaxis]
+                })
+                summary_writer.add_summary(summary, 0)
             
             # Define batch size scheduler
             batch_size_scheduler = private_utils.generate_batch_size_scheduler(epochs, 
@@ -134,12 +136,13 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, lambda_output=0., reg_mode='hL1
                     if (epoch + 1) % min(1000, epochs // 5) == 0:
                         print('At epoch {}'.format(epoch + 1))
 
-                    summary = sess.run(merged, feed_dict={
-                        _X: X[shuffle_idx][:(batch_size * num_GPUs)], 
-                        _Y: Y[shuffle_idx][:(batch_size * num_GPUs)][:, np.newaxis]
-                    })
+                    if run_id is not None:
+                        summary = sess.run(merged, feed_dict={
+                            _X: X[shuffle_idx][:(batch_size * num_GPUs)], 
+                            _Y: Y[shuffle_idx][:(batch_size * num_GPUs)][:, np.newaxis]
+                        })
 
-                    summary_writer.add_summary(summary, epoch + 1)
+                        summary_writer.add_summary(summary, epoch + 1)
                         
                 # Check for early stopping
                 if loss < early_stop['loss']:
@@ -152,17 +155,18 @@ def analyze(df, max_lag, run_id='', lambda_=0.1, lambda_output=0., reg_mode='hL1
                 elif (epoch + 1) - early_stop['epoch'] >= (epochs // 10 if early_stopping else epochs + 1):
                     print('Exited due to early stopping.')
                     break
-                        
-            # Log summary upon completing training
-            summary = sess.run(merged, feed_dict={
-                _X: X[shuffle_idx][:(batch_size * num_GPUs)], 
-                _Y: Y[shuffle_idx][:(batch_size * num_GPUs)][:, np.newaxis]
-            })
+            
+            if run_id is not None:
+                # Log summary upon completing training
+                summary = sess.run(merged, feed_dict={
+                    _X: X[shuffle_idx][:(batch_size * num_GPUs)], 
+                    _Y: Y[shuffle_idx][:(batch_size * num_GPUs)][:, np.newaxis]
+                })
 
-            summary_writer.add_summary(summary, epoch + 1)
+                summary_writer.add_summary(summary, epoch + 1)
 
-            # Ensure pending summaries are written to disk
-            summary_writer.flush()
+                # Ensure pending summaries are written to disk
+                summary_writer.flush()
 
             print()
             
