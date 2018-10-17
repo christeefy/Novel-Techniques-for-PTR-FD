@@ -1,4 +1,5 @@
 import numpy as np
+from .metrics import PRF
 
 def _thresholds(W):
     '''

@@ -1,5 +1,10 @@
+import numpy as np
+
 import plotly.offline as pyo
 import plotly.graph_objs as go
+
+from ..metrics import utils
+from .metrics import AUCPR
 
 # Activate offline notebook plotting (for Jupyter Notebook)
 pyo.init_notebook_mode()
@@ -31,10 +36,10 @@ def PR_curve(W, W_truth, display_AUC=True, image=None, run_id=''):
     W_truth = np.array(W_truth)
 
     # Obtain sorted PRF metrics
-    metrics = _metrics_list(W, W_truth)
+    metrics = utils.metrics_list(W, W_truth)
 
     # Obtain minimum and maximum recalls (a & b respectively)
-    a, b = _bounds(metrics)
+    a, b = utils.bounds(metrics)
 
     # Calculate skew of dataset
     skew = np.sum(W_truth) / W_truth.size
