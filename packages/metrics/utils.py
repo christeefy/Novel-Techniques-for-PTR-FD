@@ -1,5 +1,5 @@
 import numpy as np
-from .metrics import PRF
+from . import metrics
 
 def _thresholds(W):
     '''
@@ -45,7 +45,7 @@ def metrics_list(W, W_truth, autocausation=True):
     # Calculate prec, recall and F-score metric for a
     # range of thresholds. Metrics is a list of 
     # (order, (prec, recall F-score)) tuple
-    metrics = [PRF(W, W_truth, 
+    metrics = [metrics.PRF(W, W_truth, 
                    threshold=threshold, 
                    autocausation=autocausation) for threshold in _thresholds(W)]
 

@@ -78,6 +78,8 @@ def PRF(W, W_truth, threshold=0.1, autocausation=True):
         # Set appropriate values to 0 and 1
         W[pos_idx] = 1
         W[neg_idx] = 0
+    else:
+        threshold = None
 
     if not autocausation:
         W = utils.ravel_without_diag(W)
