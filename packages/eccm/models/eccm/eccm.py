@@ -1,10 +1,30 @@
 import pandas as pd
 import itertools
 
+import argparse
+
 from . import utils
 from ... import graph
 from ..ccm.utils import ccm_one_way
 from ...private.utils import generate_delayed_df
+from ....causality_viz import causal_heatmap
+from ....utils import is_interactive
+
+
+def _parse_arguments():
+    # Build parser
+    parser = argparse.ArgumentParser('Script for invoking ECCM function for process topology reconstruction.')
+    parser.add_argument('csv', help='Location of csv file containing data for process topology reconstruction.')
+    parser.add_argument('-x', '--cross_map_lags', help='Number of time lags to consider (+ and -) during cross-mapping. Default value is 5.', type=int, default=5)
+    parser.add_argument('-a', '--use_all_points', help='Boolean on whether to use all points in calculations. Default to False.', type=bool, default=False)
+    parser.add_argument('-c', '--criterion', help='Criterion used to select best cross map skill amongst all time lags. Default value is "Peak".', default='Peak', choices=['Peak', 'URC'])
+    parser.add_argument('-p', '--p_val', help='p-value for causality hypothesis test. Default value is 0.05.', type=float, default=0.05)
+    parser.add_argument('-v', '--verbose', help='Verbosity level. Default value is False.', type=bool, default=False)
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    return args
 
 def _eccm_base(df, source, target, cross_map_lags, embed_dim, delay=1):
     '''
@@ -120,17 +140,33 @@ def eccm(df, cross_map_lags=5, use_all_points=False, criterion='Peak', p_val=0.0
     g = graph.Graph(nodes=df.columns, 
                          edges=peaksDF.index, 
                          dists=[-int(dist) for dist in peaksDF[f'{criterion} xMap Lag']])
-    if verbose:
+    if verbose and is_interactive():
         print('Before pruning')
         display(g)
         
     g.prune(verbose=verbose)
     
-    if verbose:
+    if verbose and is_interactive():
         print('After pruning')
         display(g)
     
     # Obtain causality matrix
     causalities, _ = g.adj_mat()
     
-    return causalities, g
+    return causalities
+
+
+if __name__ == '__main__':
+    # Parse arguments
+    args = _parse_arguments()
+
+    # Obtain csv
+    df = pd.read_csv(args.csv)
+
+    # Reconstruct process topology
+    causalities = eccm(df=df,
+                       **{k: v for k, v in vars(args).items() if k != 'csv'})
+
+    # Visualize process topology
+    print('Generating causal heatmap...')
+    causal_heatmap(causalities, df.columns)

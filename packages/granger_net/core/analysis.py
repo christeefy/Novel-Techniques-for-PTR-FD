@@ -6,7 +6,33 @@ import datetime
 from ..models import granger_net
 
 from ..private import utils as private_utils
-from ..private.gpu import utils as gpu_utils 
+from ..private.gpu import utils as gpu_utils
+
+from ... import causality_viz
+
+import argparse
+
+
+def _parse_arguments():
+    # Build argument parser
+    parser = argparse.ArgumentParser('Script to invoke the Granger Net function for process topology reconstruction.')
+    parser.add_argument('csv', help='Location of csv file containing data for process topology reconstruction.')
+    parser.add_argument('max_lag', help='Number of past time series values to consider as inputs.', type=int)
+    parser.add_argument('-r', '--run_id', help='Run identifier. Default value is None. Include value to enable TensorBoard logging.', default=None)
+    parser.add_argument('-l', '--lambda_', help='Encoder weights regularization parameter. Default value is 0.1.', default=0.1)
+    parser.add_argument('-m', '--reg_mode', help='Regularization mode. Default mode is hL1', type=str, default='hL1')
+    parser.add_argument('-n', '--n_H', help='Number of hidden units at the encoder layer. Default value is 32.', type=int, default=32)
+    parser.add_argument('-e', '--epochs', help='Maximum number of epochs for training. Default value is 3000.', type=int, default=3000)
+    parser.add_argument('-s', '--early_stopping', help='Whether to perform early stopping during training. Default value is True.', type=bool, default=True)
+    parser.add_argument('-a', '--autocausation', help='Whether to evaluate autocausation. Default value is True', type=bool, default=True)
+    parser.add_argument('-b', '--initial_batch_size', help='Initial batch size. Default value is 32.', type=int, default=32)
+    parser.add_argument('-i', '--batch_size_interpolation', help='Method to interpolate from initial and final batch size. Default value is "exp_step".', default='exp_step', choices=['exp_step', 'linear', 'step'])
+    parser.add_argument('-t', '--threshold', help='Percentage of maximum causality value to use as threshold to convert heatmap into binary heatmap. Binary heatmap is generated if provided, otherwise grayscale heatmap.', type=float)
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    return args
 
 
 def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='hL1', n_H=32, epochs=3000, \
@@ -25,7 +51,7 @@ def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='h
         n_H:                      Number of hidden units of the encoder layer (int)
         epochs:                   Maximum number of epochs for training (int)
         early_stopping:           Boolean on whether to prematurely end training if loss value does not improve after 10% of `epochs`.
-        autocausation:            Boolean on whether to toggle off checks for autocausation
+        autocausation:            Boolean on whether to evaluate autocausation
         initial_batch_size:       Initial batch size to use for training (int)
         batch_size_interpolation: Method to interpolate from initial and final batch size (10% of length of `df`). 
                                   Possible values include: {'step', 'exp_step', 'linear'}.
@@ -179,3 +205,21 @@ def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='h
     print('Analysis completed in {} mins {} secs'.format(*divmod((datetime.datetime.now() - START_TIME).seconds, 60)))
     
     return W
+
+
+if __name__ == '__main__':
+    # Parse arguments
+    args = _parse_arguments()
+
+    # Obtain data from csv
+    df = pd.read_csv(args.csv)
+
+    # Run Granger Net algorithm
+    W = analyze(df=df, **{k: v for k, v in vars(args).items() if k not in ['csv', 'threshold']})
+
+    # Visualize granger net
+    print('Generating causal heatmap...')
+    if args.threshold is None:
+        causality_viz.causal_heatmap(W, df.columns, mode='joint')
+    else:
+        causality_viz.causal_heatmap(W, df.columns, mode='joint_threshold', threshold=args.threshold)

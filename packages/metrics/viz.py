@@ -6,9 +6,6 @@ import plotly.graph_objs as go
 from ..metrics import utils
 from .metrics import AUCPR
 
-# Activate offline notebook plotting (for Jupyter Notebook)
-pyo.init_notebook_mode()
-
 
 def PR_curve(W, W_truth, display_AUC=True, image=None, run_id=''):
     '''

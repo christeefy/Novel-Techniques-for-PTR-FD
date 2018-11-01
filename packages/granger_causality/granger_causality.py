@@ -1,5 +1,23 @@
 import numpy as np
 from scipy.stats import f
+import pandas as pd
+import argparse
+
+from ..causality_viz import causal_heatmap
+
+
+def _parse_arguments():
+    # Build parser
+    parser = argparse.ArgumentParser('Script for invoking ECCM function for process topology reconstruction.')
+    parser.add_argument('csv', help='Location of csv file containing data for process topology reconstruction.')
+    parser.add_argument('max_lag', help='Number of past time series values to consider as inputs.', type=int)
+    parser.add_argument('-a', '--autocausation', help='Whether to evaluate autocausation. Default value is True', type=bool, default=True)
+    parser.add_argument('-p', '--pval', help='p-value for causality hypothesis test. Default value is 0.05.', type=float, default=0.05)
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    return args
 
 def _create_dataset_vector_output(df, max_lag):
     '''
@@ -81,3 +99,18 @@ def granger_causality(df, max_lag, pval=0.05, autocausation=True):
             causalities[i, i] = False
     
     return causalities.astype(float)
+
+
+if __name__ == '__main__':
+    # Parse arguments
+    args = _parse_arguments()
+
+    # Obtain df
+    df = pd.read_csv(args.csv)
+
+    # Reconstruct process topology
+    W = granger_causality(df=df, **{k: v for k, v in vars(args).items() if k != 'csv'})
+
+    # Visualize process topology
+    print('Generating causal heatmap...')
+    causal_heatmap(W, df.columns)

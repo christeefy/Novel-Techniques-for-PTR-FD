@@ -14,8 +14,26 @@ Next, install external module dependencies:
 pip install -r requirements.txt
 ```
 
+
+## Quickstart
 A guide on how to use these functions provided in `packages` can be found using the Jupyter Notebook `Quickstart.ipynb`.
 
+The functions are also callable through the command line (examples provided below). These functions require a csv containing only the time series variables of interest for the analysis, and the functions visualize the resulting output as a causal heatmap.
+
+#### Granger Causality
+```
+python3 -m packages.granger_causality.granger_causality <path_to_csv> <max_lag> --autocausation=True --pval=0.05
+```
+
+#### Granger Net
+```
+python3 -m packages.granger_net.core.analysis <path_to_csv> <max_lag> --autocausation=True --epochs=3000 --initial_batch_size=32 --threshold=0.1
+```
+
+#### Extended Convergent Cross-Mapping
+```
+python3 -m packages.eccm.models.eccm.eccm <path_to_csv> --cross_map_lags=5 --use_all_points=True --criterion=Peak --p_val=0.05 --verbose=True
+```
 
 ## References
 1. Clive WJ Granger. Investigating causal relations by econometric models and cross-spectral methods. *Econometrica: Journal of the Econometric Society*, pages 424–438, 1969.
