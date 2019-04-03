@@ -1,16 +1,21 @@
+import os
 import tensorflow as tf
 import numpy as np
 import pandas as pd
 import datetime
+from tqdm import tqdm, tqdm_notebook
 
-from ..models import granger_net
+from ..models import granger_net as granger_net_model
 
 from ..private import utils as private_utils
 from ..private.gpu import utils as gpu_utils
 
 from ... import causality_viz
+from ...utils import in_ipynb
 
 import argparse
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 def _parse_arguments():
@@ -35,11 +40,11 @@ def _parse_arguments():
     return args
 
 
-def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='hL1', n_H=32, epochs=3000, \
+def granger_net(df, max_lag, norm=True, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='hL1', n_H=32, epochs=3000, \
             early_stopping=True, autocausation=True, \
             initial_batch_size=32, batch_size_interpolation='exp_step'):
     '''
-    Script to perform Granger Net calculations. 
+    Script to perform Granger Net calculations.
 
     Arguments:
         df:                       Pandas dataframe containing time series data
@@ -53,7 +58,7 @@ def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='h
         early_stopping:           Boolean on whether to prematurely end training if loss value does not improve after 10% of `epochs`.
         autocausation:            Boolean on whether to evaluate autocausation
         initial_batch_size:       Initial batch size to use for training (int)
-        batch_size_interpolation: Method to interpolate from initial and final batch size (10% of length of `df`). 
+        batch_size_interpolation: Method to interpolate from initial and final batch size (10% of length of `df`).
                                   Possible values include: {'step', 'exp_step', 'linear'}.
 
     Returns:
@@ -70,48 +75,53 @@ def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='h
 
     # Standardize values in df
     private_utils.normalize_in_place(df)
-    
+
     # Infer number of variables
     p = len(df.columns)
-    
+
     # Get number of GPUs (Use 1 if there are not GPUs)
     num_GPUs = max(1, gpu_utils.get_num_gpus())
-    
+
     # Create empty causality array
     W = []
-    
+
     # Define a shuffling index
     shuffle_idx = np.arange(gpu_utils.get_truncation_idx(len(df) - max_lag - 1, num_GPUs))
-    
-    for (i, var) in enumerate(df.columns):
-        print('Computing causality of {} (variable {} of {})...'.format(var, i + 1, p))
-        
+
+    # Choose appropriate tqdm function
+    tqdm_func = tqdm_notebook if in_ipynb() else tqdm
+
+    for (i, var) in tqdm_func(enumerate(df.columns),
+                              desc='Cycling through variables',
+                              otal=len(df.columns),
+                              leave=False):
+
         # Obtain data and target for NN
-        X, Y = private_utils.create_dataset(df, var, max_lag, 
+        X, Y = private_utils.create_dataset(df, var, max_lag,
                                     autocausation=autocausation)
-        
+
         # Create early stopping variables
         early_stop = {
             'epoch': 0,
             'loss': 1e8
         }
-        
+
         # Truncate data to be evely split amongst all GPUs
         even_split_idx = gpu_utils.get_truncation_idx(len(X), num_GPUs)
         X = X[:even_split_idx]
         Y = Y[:even_split_idx]
-        
+
         assert len(shuffle_idx) == len(X), 'shuffle_idx of len {} while X of len {}'.format(len(shuffle_idx), len(X))
 
         # Reset default graph
         tf.reset_default_graph()
-        
+
         with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
             # Build model
-            _X, _Y, W1, _loss, optimizer, reconstruction_loss = granger_net.build_graph(X[0].shape, max_lag, lambda_, reg_mode, 
-                                                                   num_GPUs=num_GPUs, 
+            _X, _Y, W1, _loss, optimizer, reconstruction_loss = granger_net_model.build_graph(X[0].shape, max_lag, lambda_, reg_mode,
+                                                                   num_GPUs=num_GPUs,
                                                                    pos=i,
-                                                                   autocausation=autocausation, 
+                                                                   autocausation=autocausation,
                                                                    lambda_output=lambda_output,
                                                                    n_H=n_H)
 
@@ -124,21 +134,21 @@ def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='h
 
             # Initialise all TF variables
             tf.global_variables_initializer().run()
-            
+
             # Create saver to W1
             saver = tf.train.Saver({'W1': W1}, max_to_keep=1)
 
             if run_id is not None:
                 # Calculate initial loss prior to training
                 summary = sess.run(merged, feed_dict={
-                    _X: X[:(initial_batch_size * num_GPUs)], 
+                    _X: X[:(initial_batch_size * num_GPUs)],
                     _Y: Y[:(initial_batch_size * num_GPUs)][:, np.newaxis]
                 })
                 summary_writer.add_summary(summary, 0)
-            
+
             # Define batch size scheduler
-            batch_size_scheduler = private_utils.generate_batch_size_scheduler(epochs, 
-                                                                               initial_bs=initial_batch_size, 
+            batch_size_scheduler = private_utils.generate_batch_size_scheduler(epochs,
+                                                                               initial_bs=initial_batch_size,
                                                                                final_bs=max(initial_batch_size, len(X) // 10),
                                                                                interpolation=batch_size_interpolation)
 
@@ -149,27 +159,24 @@ def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='h
 
                 # Calculate batch size for current epoch
                 batch_size = batch_size_scheduler(epoch)
-                
+
                 for batch in range(len(X) // batch_size // num_GPUs):
                     # Perform gradient descent
                     loss, _ = sess.run([_loss, optimizer], feed_dict={
-                        _X: X[shuffle_idx][(batch * batch_size * num_GPUs):((batch + 1) * batch_size * num_GPUs)], 
+                        _X: X[shuffle_idx][(batch * batch_size * num_GPUs):((batch + 1) * batch_size * num_GPUs)],
                         _Y: Y[shuffle_idx][(batch * batch_size * num_GPUs):((batch + 1) * batch_size * num_GPUs)][:, np.newaxis]
                     })
-                    
-                # Perform summary logging and print statements
-                if (epoch + 1) % min(50, epochs // 100) == 0:
-                    if (epoch + 1) % min(1000, epochs // 5) == 0:
-                        print('At epoch {}'.format(epoch + 1))
 
+                # Log summaries
+                if (epoch + 1) % min(50, epochs // 100) == 0:
                     if run_id is not None:
                         summary = sess.run(merged, feed_dict={
-                            _X: X[shuffle_idx][:(batch_size * num_GPUs)], 
+                            _X: X[shuffle_idx][:(batch_size * num_GPUs)],
                             _Y: Y[shuffle_idx][:(batch_size * num_GPUs)][:, np.newaxis]
                         })
 
                         summary_writer.add_summary(summary, epoch + 1)
-                        
+
                 # Check for early stopping
                 if loss < early_stop['loss']:
                     early_stop['loss'] = loss
@@ -179,13 +186,13 @@ def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='h
                     _best_W1 = sess.run(W1)
 
                 elif (epoch + 1) - early_stop['epoch'] >= (epochs // 10 if early_stopping else epochs + 1):
-                    print('Exited due to early stopping.')
+                    #print('Exited due to early stopping.')
                     break
-            
+
             if run_id is not None:
                 # Log summary upon completing training
                 summary = sess.run(merged, feed_dict={
-                    _X: X[shuffle_idx][:(batch_size * num_GPUs)], 
+                    _X: X[shuffle_idx][:(batch_size * num_GPUs)],
                     _Y: Y[shuffle_idx][:(batch_size * num_GPUs)][:, np.newaxis]
                 })
 
@@ -194,16 +201,15 @@ def analyze(df, max_lag, run_id=None, lambda_=0.1, lambda_output=0., reg_mode='h
                 # Ensure pending summaries are written to disk
                 summary_writer.flush()
 
-            print()
-            
             # Obtain weights and append to main array
             W.append(private_utils.extract_weights(_best_W1, max_lag, pos=i, autocausation=autocausation))
-            
+
     # Create a np array from W
     W = np.array(W)
 
-    print('Analysis completed in {} mins {} secs'.format(*divmod((datetime.datetime.now() - START_TIME).seconds, 60)))
-    
+    if norm:
+        W = np.linalg.norm(W, axis=-1)
+
     return W
 
 
@@ -215,7 +221,7 @@ if __name__ == '__main__':
     df = pd.read_csv(args.csv)
 
     # Run Granger Net algorithm
-    W = analyze(df=df, **{k: v for k, v in vars(args).items() if k not in ['csv', 'threshold']})
+    W = granger_net(df=df, **{k: v for k, v in vars(args).items() if k not in ['csv', 'threshold']})
 
     # Visualize granger net
     print('Generating causal heatmap...')

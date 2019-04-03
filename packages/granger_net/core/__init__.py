@@ -1,1 +1,1 @@
-from .analysis import analyze
+from .analysis import granger_net

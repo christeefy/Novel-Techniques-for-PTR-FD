@@ -3,7 +3,7 @@
 # from . import eccm
 
 from .granger_causality import granger_causality
-from .granger_net.core.analysis import analyze as granger_net
+from .granger_net.core.analysis import granger_net
 from .eccm import ccm, eccm
 
 from . import metrics
