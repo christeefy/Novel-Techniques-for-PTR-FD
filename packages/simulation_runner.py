@@ -128,7 +128,7 @@ def _single_pass_eval(seed: int,
     '''
 
     # Generate data
-    ex, _ = datagen(seed=seed)
+    ex = datagen(seed=seed)
 
     # Obtain causality matrix
     W = causality_func(ex)

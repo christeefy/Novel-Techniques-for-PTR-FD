@@ -3,25 +3,31 @@ import pandas as pd
 from scipy.integrate import odeint
 import datetime
 
-def generate_ex1(N, seed=int(datetime.datetime.now().timestamp())):
+
+def generate_ex1(N: int,
+                 seed: int = int(datetime.datetime.now().timestamp()),
+                 include_noise: bool = False,
+                 return_hparams: bool = False) -> pd.DataFrame:
     '''
     Generate data for Example 1 from Ping's thesis.
 
     Arguments:
         N: Time-series length (int)
         seed: Random seed value (int)
+        include_noise: Exclude noise from dataframe if False. (bool)
+        return_hparams: Return hyperparameters of simulations if True. (bool)
 
     Returns:
-        A tuple containing 
+        A tuple containing
             - a Pandas DataFrame of shape (N x p)
             - system coefficients
     '''
     # Set random seed
     np.random.seed(seed)
-    
+
     # Define an empty dict
     ex = {}
-    
+
     # Convert n to int
     N = int(N)
 
@@ -45,29 +51,41 @@ def generate_ex1(N, seed=int(datetime.datetime.now().timestamp())):
 
     # Map coeffs to dict
     coeffs = {k: v for (k, v) in zip(['k1', 'k2', 'k3'], (k1, k2, k3))}
-        
-    return pd.DataFrame(ex), coeffs
+
+    df = pd.DataFrame(ex)
+    if not include_noise:
+        df = df[['X', 'Y', 'Z']]
+
+    if return_hparams:
+        return df, coeffs
+    else:
+        return df
 
 
-def generate_ex2(N, seed=int(datetime.datetime.now().timestamp())):
+def generate_ex2(N: int,
+                 seed: int = int(datetime.datetime.now().timestamp()),
+                 include_noise: bool = False,
+                 return_hparams: bool = False) -> pd.DataFrame:
     '''
     Generate data for Example 2 from Ping's thesis.
 
     Input:
         N: Time-series length (int)
         seed: Random seed value (int)
+        include_noise: Exclude noise from dataframe if False. (bool)
+        return_hparams: Return hyperparameters of simulations if True. (bool)
 
     Returns:
-        A tuple containing 
+        A tuple containing
             - a Pandas DataFrame of shape (N x p)
             - system coefficients
     '''
     # Set random seed
     np.random.seed(seed)
-    
+
     # Define an empty dict
     ex = {}
-    
+
     # Convert n to int
     N = int(N)
 
@@ -95,51 +113,73 @@ def generate_ex2(N, seed=int(datetime.datetime.now().timestamp())):
 
     # Map coeffs to dict
     coeffs = {k: v for (k, v) in zip(['a', 'b', 'k1', 'k2', 'k3', 'k4', 'k5'], (a, b, k1, k2, k3, k4, k5))}
-        
-    return pd.DataFrame(ex), coeffs
+
+    df = pd.DataFrame(ex)
+    if not include_noise:
+        df = df[['X', 'Y', 'Z']]
+
+    if return_hparams:
+        return df, coeffs
+    else:
+        return df
 
 
-def generate_ex3(src, trial):
+def generate_ex3(src: str,
+                 seed: int,
+                 include_noise: bool = False,
+                 return_hparams: bool = False) -> pd.DataFrame:
     '''
-    Convert a csv containing simulated data for Example 3 of Ping's thesis 
+    Convert a csv containing simulated data for Example 3 of Ping's thesis
     into a Pandas DataFrame.
 
     Arguments:
-        src: Parent directory (folder) containing csv files for Example 3. 
-        trial: Simulation id (int)
+        src: Parent directory (folder) containing csv files for Example 3.
+        seed: Simulation id (int)
+        include_noise: Exclude noise from dataframe if False. (bool)
+        return_hparams: Return hyperparameters of simulations if True. (bool)
 
     Returns:
         A Pandas DataFrame of shape (N x p)
     '''
-    assert trial in range(1, 11)
-    return pd.read_csv(f'{src}/ex3_{trial}.csv', delimiter=',')
+    if not include_noise:
+        raise NotImplementedError()
+    assert seed in range(1, 11)
+    return pd.read_csv(f'{src}/ex3_{seed}.csv', delimiter=',')
 
 
-def nonisothermal_CSTR(src, trial):
-	'''
-	Convert a csv containing simulated values of a nonisothermal
+def nonisothermal_CSTR(src: str,
+                       seed: int,
+                       include_noise: bool = False,
+                       return_hparams: bool = False) -> pd.DataFrame:
+    '''
+    Convert a csv containing simulated values of a nonisothermal
     CSTR from Marlin's Process Control textbook into a Pandas
     DataFrame.
 
     Arguments:
-        src: Parent directory (folder) containing csv files for the nonisothermal CSTR. 
-        trial: Simulation id (int)
+        src: Parent directory (folder) containing csv files for
+             the nonisothermal CSTR.
+        seed: Simulation id (int)
+        include_noise: Exclude noise from dataframe if False. (bool)
+        return_hparams: Return hyperparameters of simulations if True. (bool)
 
     Returns:
         A Pandas DataFrame of shape (N x p)
-	'''
-	return pd.read_csv(f'{src}/cstr_{trial}.csv', delimiter=',')
+    '''
+    if not include_noise:
+        raise NotImplementedError()
+    return pd.read_csv(f'{src}/cstr_{seed}.csv', delimiter=',')
 
 
 def rossler(t, initial_state=[9.1901e-4, 1.4984e-3, 0.58254, 0.13225], d_mode='constant', **kwargs):
     '''
-    Generate a Rossler System consisting of 
-    chemical species concentrations A, B, C and D. 
+    Generate a Rossler System consisting of
+    chemical species concentrations A, B, C and D.
 
     Inputs:
         t:             List of time values where values are required
         initial_state: Initial states
-        d_mode:        Mode of simulating input D. Valid choices 
+        d_mode:        Mode of simulating input D. Valid choices
                        include ['constant', 'periodic']
 
         **kwargs:
@@ -169,7 +209,7 @@ def rossler(t, initial_state=[9.1901e-4, 1.4984e-3, 0.58254, 0.13225], d_mode='c
         a_prime = k1 * a * c - k2 * a - k3 * a * b / (a + K) + k4 * d
         b_prime = k2 * a - k5 * b + k6
         c_prime = k7 - k1 * a * c - k8 * c
-        
+
         if d_mode == 'constant':
             d_prime = 0
         elif d_mode == 'periodic':
@@ -183,23 +223,26 @@ def rossler(t, initial_state=[9.1901e-4, 1.4984e-3, 0.58254, 0.13225], d_mode='c
     if d_mode == 'periodic':
         assert {'amp', 'freq'} <= kwargs.keys(), 'Missing arguments'
 
-    rosslerDF = pd.DataFrame(odeint(_rossler_reaction, initial_state, t), 
+    rosslerDF = pd.DataFrame(odeint(_rossler_reaction, initial_state, t),
                              columns=['A', 'B', 'C', 'D'])
 
     return rosslerDF
 
 
-def predator_prey_4_species(N, seed):
+def predator_prey_4_species(N: int,
+                            seed: int,
+                            return_hparams: bool = False) -> pd.DataFrame:
     '''
-    Generate a four-species predator-prey system based on 
-    ECCM's paper. 
+    Generate a four-species predator-prey system based on
+    ECCM's paper.
 
     Arguments:
         N: Time-series length (int)
         seed: Random seed value (int)
+        return_hparams: Return hyperparameters of simulations if True. (bool)
 
     Returns:
-        A tuple containing 
+        A tuple containing
             - a Pandas DataFrame of shape (N x p)
             - system coefficients
     '''
@@ -229,9 +272,13 @@ def predator_prey_4_species(N, seed):
         ex['y4'][t + 1] = ex['y4'][t] * (r4 - r4 * ex['y4'][t] - r_43 * ex['y3'][t])
 
     # Map coeffs to dict
-    coeffs = {k: v for (k, v) in zip(['r1', 'r2', 'r3', 'r4', 'r_21', 'r_32', 'r_43'], (r1, r2, r3, r4, r_21, r_32, r_43))}        
+    coeffs = dict(zip(('r1', 'r2', 'r3', 'r4', 'r_21', 'r_32', 'r_43'),
+                      (r1, r2, r3, r4, r_21, r_32, r_43)))
 
-    return pd.DataFrame(ex), coeffs
+    if return_hparams:
+        return pd.DataFrame(ex), coeffs
+    else:
+        return pd.DataFrame(ex)
 
 
 def eastman(PVs_only=False, oscillating_only=False, OSI=False):
@@ -240,11 +287,11 @@ def eastman(PVs_only=False, oscillating_only=False, OSI=False):
 
     Arguments:
         PVs_only: Load variables that are only PVs
-        oscillating_only: Load variables that are known to 
+        oscillating_only: Load variables that are known to
                           share a common oscillation frequency.
         OSI: Load variables that match the OSI threshold as per Yuan's paper.
     '''
-    if not ((not oscillating_only) and (not OSI)): 
+    if not ((not oscillating_only) and (not OSI)):
         assert oscillating_only != OSI
 
     # Read data
@@ -267,9 +314,9 @@ def eastman(PVs_only=False, oscillating_only=False, OSI=False):
 
     elif OSI:
         osc_key = [
-        'LC1.PV', 'LC1.OP', 
+        'LC1.PV', 'LC1.OP',
         'FC1.PV', 'FC5.PV', 'FC5.OP', 'FC8.PV', 'FC8.OP',
-        'LC2.PV', 'LC2.OP', 
+        'LC2.PV', 'LC2.OP',
         'TC1.PV', 'TC1.OP', 'TC2.PV', 'TC2.OP'
        ]
 
@@ -278,3 +325,4 @@ def eastman(PVs_only=False, oscillating_only=False, OSI=False):
             .sort_index(axis=1, inplace=False))
 
     return eastman_df.sort_index(axis=1, inplace=False)
+    
